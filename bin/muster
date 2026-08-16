@@ -1,0 +1,90 @@
+#!/usr/bin/env zshctl
+
+zshctl[man_title]='Muster Manuals'
+
+function :help {
+    heredoc -v help <<'    EOF'
+        # desc
+        Coordinate participants in named workspaces.
+        # opt help
+        Display help for `muster`.
+        # man
+        ## DESCRIPTION
+        `muster` provides the small pieces of infrastructure that let people
+        and coding models work together in durable, named workspaces.
+        ## OPTIONS
+        > options
+        ## COMMANDS
+        > commands
+    EOF
+}
+
+function :args {
+    eval "$(args -UC -bx h,help -- "$@")"
+}
+
+function muster_address {
+    emulate -L zsh
+    setopt extendedglob
+    [[ ${1:-} == [a-z0-9]##(-[a-z0-9]##)# ]] ||
+        abend 'fatal: invalid address: %s' "${1:-(empty)}"
+}
+
+function muster_state_root {
+    typeset base=${XDG_STATE_HOME:-$HOME/.local/state}
+    REPLY=${MUSTER_STATE_HOME:-$base/muster}
+}
+
+function muster_messages_dir {
+    muster_state_root
+    REPLY=$REPLY/messages/$1
+}
+
+function muster_messages_configure {
+    typeset base=${XDG_CONFIG_HOME:-$HOME/.config}
+    typeset config=$base/muster/messages.zsh
+    [[ ! -f $config ]] || source $config
+}
+
+function muster_messages_remote {
+    typeset operation=$1 payload=$2
+    muster_messages_configure
+
+    if [[ -n ${MUSTER_MESSAGES_SSH:-} ]]; then
+        typeset remote_command=${MUSTER_MESSAGES_REMOTE_COMMAND:-muster}
+        print -rn -- "$payload" |
+            ssh "$MUSTER_MESSAGES_SSH" "$remote_command messages $operation remote"
+    else
+        print -rn -- "$payload" |
+            "${zshctl[argzero]:A}" messages $operation remote
+    fi
+}
+
+function muster_require_fswatch {
+    (( ${+commands[fswatch]} )) || abend 'fatal: fswatch is not installed'
+}
+
+function muster_timeout_command {
+    if (( ${+commands[timeout]} )); then
+        REPLY=$commands[timeout]
+    elif (( ${+commands[gtimeout]} )); then
+        REPLY=$commands[gtimeout]
+    else
+        abend 'fatal: timeout or gtimeout is not installed'
+    fi
+}
+
+function muster_write_cursor {
+    typeset cursor_path=$1 value=$2
+    typeset tmp=$cursor_path.$$.tmp
+    printf '%s\n' "$value" > $tmp ||
+        abend 'fatal: unable to stage cursor: %s' "$cursor_path"
+    mv $tmp $cursor_path ||
+        abend 'fatal: unable to update cursor: %s' "$cursor_path"
+}
+
+function :execute {
+    delegate "$@"
+}
+
+# vim: ft=zsh:
