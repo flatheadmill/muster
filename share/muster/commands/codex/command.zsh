@@ -219,6 +219,11 @@ function codex_app_server_ensure {
         return
     fi
 
+    # A compatibility link belongs to another daemon. Never replace it merely
+    # because this caller cannot reach its target.
+    [[ ! -L $socket ]] \
+        || abend 'fatal: shared Codex app-server at %s is unavailable' "$socket"
+
     typeset old_pid
     [[ -f $pid_file ]] && old_pid=$(<$pid_file)
     if [[ -n $old_pid ]] && kill -0 $old_pid 2>/dev/null; then
