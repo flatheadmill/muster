@@ -14,3 +14,17 @@ Please review the change.
 ```
 
 Run `muster messages --help` for storage and remote-host configuration.
+
+## Codex
+
+Muster keeps one standing Codex thread for each window. The interactive TUI and message-triggered turns use the same shared app-server configuration, so a conversation continues whether or not its terminal is open.
+
+```console
+$ muster codex tui --slug widget
+```
+
+Messages sent to `widget-codex` wake that standing thread after delivery. `muster codex nudge` provides the same mechanism directly.
+
+```console
+$ printf '%s\n' 'Review the current work.' | muster codex nudge --slug widget
+```

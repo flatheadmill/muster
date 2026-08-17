@@ -1,0 +1,403 @@
+#!/usr/bin/env node
+
+const net = require('node:net');
+const fs = require('node:fs');
+const { spawn } = require('node:child_process');
+const { once } = require('node:events');
+const process = require('node:process');
+
+const DEFAULT_TIMEOUT_MS = 5000;
+
+function usage() {
+    process.stdout.write(`Usage: codex-nudge --socket PATH [--thread ID] [--resume-config JSON] [--timeout MS] [--probe | --initialize-only] [PROMPT]\n` +
+        `       codex-nudge --socket PATH --start-thread --resume-config JSON\n` +
+        `       codex-nudge --socket PATH --start-server --log PATH\n\n` +
+        `Submit one prompt to a running Codex app-server over its Unix socket.\n` +
+        `If PROMPT is omitted, read it from standard input. --probe connects and\n` +
+        `resumes the thread without starting a turn. --initialize-only checks the\n` +
+        `app-server without loading a thread. --start-thread creates a persistent\n` +
+        `thread and prints its ID. --start-server launches a detached app-server\n` +
+        `and prints its PID.\n`);
+}
+
+function parseArgs(argv) {
+    const options = {
+        socket: null,
+        thread: null,
+        timeout: DEFAULT_TIMEOUT_MS,
+        probe: false,
+        initializeOnly: false,
+        startThread: false,
+        startServer: false,
+        log: null,
+        resumeConfig: {},
+        prompt: null,
+    };
+
+    for (let i = 0; i < argv.length; i += 1) {
+        const arg = argv[i];
+        switch (arg) {
+            case '--socket':
+                options.socket = argv[++i];
+                break;
+            case '--thread':
+                options.thread = argv[++i];
+                break;
+            case '--timeout':
+                options.timeout = Number(argv[++i]);
+                break;
+            case '--resume-config':
+                options.resumeConfig = JSON.parse(argv[++i]);
+                break;
+            case '--probe':
+                options.probe = true;
+                break;
+            case '--initialize-only':
+                options.initializeOnly = true;
+                break;
+            case '--start-thread':
+                options.startThread = true;
+                break;
+            case '--start-server':
+                options.startServer = true;
+                break;
+            case '--log':
+                options.log = argv[++i];
+                break;
+            case '-h':
+            case '--help':
+                usage();
+                process.exit(0);
+                break;
+            case '--':
+                options.prompt = argv.slice(i + 1).join(' ');
+                i = argv.length;
+                break;
+            default:
+                if (arg.startsWith('-')) {
+                    throw new Error(`unknown option: ${arg}`);
+                }
+                if (options.prompt !== null) {
+                    throw new Error('prompt must be one quoted argument or follow --');
+                }
+                options.prompt = arg;
+        }
+    }
+
+    if (!options.socket) throw new Error('--socket is required');
+    if (!options.initializeOnly && !options.startThread && !options.startServer && !options.thread) {
+        throw new Error('--thread is required');
+    }
+    if (options.initializeOnly && options.probe) {
+        throw new Error('--initialize-only and --probe cannot be combined');
+    }
+    if (options.startThread &&
+        (options.initializeOnly || options.probe || options.thread || options.prompt !== null)) {
+        throw new Error('--start-thread cannot be combined with other thread operations');
+    }
+    if (options.startServer &&
+        (options.initializeOnly || options.startThread || options.probe || options.thread ||
+            options.prompt !== null)) {
+        throw new Error('--start-server cannot be combined with thread operations');
+    }
+    if (options.startServer && !options.log) throw new Error('--log is required with --start-server');
+    if (!options.resumeConfig || Array.isArray(options.resumeConfig) ||
+        typeof options.resumeConfig !== 'object') {
+        throw new Error('--resume-config must be a JSON object');
+    }
+    if (!Number.isInteger(options.timeout) || options.timeout <= 0) {
+        throw new Error('--timeout must be a positive integer');
+    }
+    return options;
+}
+
+async function startServer(options) {
+    const log = fs.openSync(options.log, 'a');
+    const env = { ...process.env };
+    delete env.MUSTER_WINDOW_SLUG;
+    delete env.MUSTER_SLUG;
+
+    let child;
+    try {
+        child = spawn('codex', [
+            'app-server',
+            '--listen',
+            `unix://${options.socket}`,
+        ], {
+            detached: true,
+            env,
+            stdio: ['ignore', log, log],
+        });
+        await once(child, 'spawn');
+    } finally {
+        fs.closeSync(log);
+    }
+
+    child.unref();
+    process.stdout.write(`${child.pid}\n`);
+}
+
+async function readStdin() {
+    const chunks = [];
+    for await (const chunk of process.stdin) chunks.push(chunk);
+    return Buffer.concat(chunks).toString('utf8');
+}
+
+async function openUnixWebSocket(socketPath, timeoutMs) {
+    const peers = new Set();
+    let bridgeError = null;
+
+    const bridge = net.createServer((tcp) => {
+        bridge.close();
+        peers.add(tcp);
+
+        const unix = net.createConnection({ path: socketPath });
+        peers.add(unix);
+        unix.pipe(tcp);
+
+        // Node always offers permessage-deflate, but Codex's Unix endpoint
+        // rejects that extension instead of ignoring it.
+        let handshake = Buffer.alloc(0);
+        const forwardHandshake = (chunk) => {
+            handshake = Buffer.concat([handshake, chunk]);
+            const headerEnd = handshake.indexOf('\r\n\r\n');
+            if (headerEnd === -1) {
+                if (handshake.length > 64 * 1024) {
+                    fail(new Error('WebSocket handshake exceeded 64 KiB'));
+                }
+                return;
+            }
+
+            tcp.off('data', forwardHandshake);
+            const header = handshake
+                .subarray(0, headerEnd + 4)
+                .toString('latin1')
+                .replace(/^sec-websocket-extensions:.*\r\n/gmi, '');
+            unix.write(header, 'latin1');
+            unix.write(handshake.subarray(headerEnd + 4));
+            tcp.pipe(unix);
+        };
+        tcp.on('data', forwardHandshake);
+
+        const fail = (error) => {
+            bridgeError = bridgeError || error;
+            tcp.destroy();
+            unix.destroy();
+        };
+        tcp.on('error', fail);
+        unix.on('error', fail);
+        tcp.on('close', () => peers.delete(tcp));
+        unix.on('close', () => peers.delete(unix));
+    });
+
+    await new Promise((resolve, reject) => {
+        bridge.once('error', reject);
+        bridge.listen(0, 'localhost', resolve);
+    });
+
+    const address = bridge.address();
+    const websocket = new WebSocket(`ws://localhost:${address.port}/`);
+    const timer = setTimeout(() => {
+        websocket.close();
+    }, timeoutMs);
+
+    try {
+        await new Promise((resolve, reject) => {
+            websocket.addEventListener('open', resolve, { once: true });
+            websocket.addEventListener('error', (event) => {
+                reject(bridgeError || event.error || new Error(`could not connect to ${socketPath}`));
+            }, { once: true });
+            websocket.addEventListener('close', () => {
+                reject(bridgeError || new Error(`connection to ${socketPath} closed during handshake`));
+            }, { once: true });
+        });
+    } catch (error) {
+        for (const peer of peers) peer.destroy();
+        bridge.close();
+        throw error;
+    } finally {
+        clearTimeout(timer);
+    }
+
+    return {
+        websocket,
+        close() {
+            if (websocket.readyState === WebSocket.OPEN ||
+                websocket.readyState === WebSocket.CONNECTING) {
+                websocket.close();
+            }
+            for (const peer of peers) peer.destroy();
+            bridge.close();
+        },
+    };
+}
+
+function rpcClient(websocket, timeoutMs) {
+    let nextId = 1;
+    const pending = new Map();
+
+    websocket.addEventListener('message', (event) => {
+        let message;
+        try {
+            message = JSON.parse(String(event.data));
+        } catch {
+            return;
+        }
+
+        if (!Object.hasOwn(message, 'id')) return;
+        const request = pending.get(String(message.id));
+        if (!request) return;
+
+        pending.delete(String(message.id));
+        clearTimeout(request.timer);
+        if (message.error) {
+            const error = new Error(message.error.message || 'app-server request failed');
+            error.code = message.error.code;
+            error.data = message.error.data;
+            request.reject(error);
+        } else {
+            request.resolve(message.result);
+        }
+    });
+
+    websocket.addEventListener('close', () => {
+        for (const request of pending.values()) {
+            clearTimeout(request.timer);
+            request.reject(new Error('app-server connection closed'));
+        }
+        pending.clear();
+    });
+
+    return {
+        notify(method, params = {}) {
+            websocket.send(JSON.stringify({ method, params }));
+        },
+        request(method, params = {}) {
+            const id = nextId++;
+            return new Promise((resolve, reject) => {
+                const timer = setTimeout(() => {
+                    pending.delete(String(id));
+                    reject(new Error(`${method} timed out after ${timeoutMs}ms`));
+                }, timeoutMs);
+                pending.set(String(id), { resolve, reject, timer });
+                websocket.send(JSON.stringify({ method, id, params }));
+            });
+        },
+    };
+}
+
+async function main() {
+    const options = parseArgs(process.argv.slice(2));
+    if (options.startServer) {
+        await startServer(options);
+        return;
+    }
+
+    if (!options.probe && !options.initializeOnly && !options.startThread && options.prompt === null) {
+        options.prompt = await readStdin();
+    }
+    if (!options.probe && !options.initializeOnly && !options.startThread && !options.prompt.trim()) {
+        throw new Error('prompt is empty');
+    }
+
+    const connection = await openUnixWebSocket(options.socket, options.timeout);
+    try {
+        const rpc = rpcClient(connection.websocket, options.timeout);
+        const initialized = await rpc.request('initialize', {
+            clientInfo: {
+                name: 'muster_codex_nudge',
+                title: 'Muster Codex nudge',
+                version: '1.0.0',
+            },
+            capabilities: { experimentalApi: true },
+        });
+        rpc.notify('initialized');
+
+        if (options.initializeOnly) {
+            process.stdout.write(`${JSON.stringify({
+                userAgent: initialized.userAgent,
+            })}\n`);
+            return;
+        }
+
+        if (options.startThread) {
+            const started = await rpc.request('thread/start', {
+                ...options.resumeConfig,
+                ephemeral: false,
+            });
+            const threadId = started?.thread?.id;
+            if (typeof threadId !== 'string' || !threadId.trim()) {
+                throw new Error('thread/start returned no thread id');
+            }
+            if (started.thread.ephemeral) {
+                throw new Error('thread/start returned an ephemeral thread');
+            }
+            // A blank thread has no rollout to resume until app-server writes
+            // its first history item. An empty developer message materializes
+            // the rollout without visible conversation text or a model turn.
+            await rpc.request('thread/inject_items', {
+                threadId,
+                items: [{
+                    type: 'message',
+                    role: 'developer',
+                    content: [{ type: 'input_text', text: '' }],
+                }],
+            });
+            process.stdout.write(`${JSON.stringify({ threadId })}\n`);
+            return;
+        }
+
+        const resumed = await rpc.request('thread/resume', {
+            ...options.resumeConfig,
+            threadId: options.thread,
+            excludeTurns: true,
+        });
+
+        if (options.probe) {
+            process.stdout.write(`${JSON.stringify({
+                threadId: resumed.thread.id,
+                status: resumed.thread.status,
+                model: resumed.model,
+                cwd: resumed.cwd,
+                approvalPolicy: resumed.approvalPolicy,
+                approvalsReviewer: resumed.approvalsReviewer,
+                sandbox: resumed.sandbox,
+                runtimeWorkspaceRoots: resumed.runtimeWorkspaceRoots,
+            })}\n`);
+            return;
+        }
+
+        const turnConfig = {};
+        for (const key of [
+            'model',
+            'cwd',
+            'runtimeWorkspaceRoots',
+            'approvalPolicy',
+            'approvalsReviewer',
+            'sandbox',
+            'personality',
+        ]) {
+            if (Object.hasOwn(options.resumeConfig, key)) {
+                turnConfig[key] = options.resumeConfig[key];
+            }
+        }
+        const started = await rpc.request('turn/start', {
+            ...turnConfig,
+            threadId: options.thread,
+            input: [{ type: 'text', text: options.prompt }],
+        });
+        process.stdout.write(`${JSON.stringify({
+            threadId: options.thread,
+            turnId: started.turn.id,
+            status: started.turn.status,
+        })}\n`);
+    } finally {
+        connection.close();
+    }
+}
+
+main().catch((error) => {
+    const detail = error.code === undefined ? '' : ` (${error.code})`;
+    process.stderr.write(`codex-nudge: ${error.message}${detail}\n`);
+    process.exitCode = 1;
+});

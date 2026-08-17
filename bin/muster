@@ -30,6 +30,13 @@ function muster_address {
         abend 'fatal: invalid address: %s' "${1:-(empty)}"
 }
 
+function muster_window_slug {
+    emulate -L zsh
+    setopt extendedglob
+    [[ ${1:-} == [a-z0-9]## ]] ||
+        abend 'fatal: invalid window slug: %s' "${1:-(empty)}"
+}
+
 function muster_state_root {
     typeset base=${XDG_STATE_HOME:-$HOME/.local/state}
     REPLY=${MUSTER_STATE_HOME:-$base/muster}
