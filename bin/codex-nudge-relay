@@ -1,0 +1,196 @@
+#!/usr/bin/env node
+
+const fs = require('node:fs');
+const path = require('node:path');
+const { spawn } = require('node:child_process');
+const { once } = require('node:events');
+
+function usage() {
+    process.stdout.write(
+        'Usage: codex-nudge-relay --socket PATH --queue PATH [--start --log PATH]\n',
+    );
+}
+
+function parseArgs(argv) {
+    const options = { socket: null, queue: null, start: false, log: null };
+    for (let i = 0; i < argv.length; i += 1) {
+        switch (argv[i]) {
+            case '--socket':
+                options.socket = argv[++i];
+                break;
+            case '--queue':
+                options.queue = argv[++i];
+                break;
+            case '--start':
+                options.start = true;
+                break;
+            case '--log':
+                options.log = argv[++i];
+                break;
+            case '-h':
+            case '--help':
+                usage();
+                process.exit(0);
+                break;
+            default:
+                throw new Error(`unknown option: ${argv[i]}`);
+        }
+    }
+    if (!options.socket) throw new Error('--socket is required');
+    if (!options.queue) throw new Error('--queue is required');
+    if (options.start && !options.log) throw new Error('--log is required with --start');
+    return options;
+}
+
+function delay(milliseconds) {
+    return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function runNudge(socket, request) {
+    return new Promise((resolve) => {
+        const executable = path.join(__dirname, 'codex-nudge');
+        const child = spawn(executable, [
+            '--socket',
+            socket,
+            '--thread',
+            request.thread,
+            '--resume-config',
+            JSON.stringify(request.resumeConfig),
+        ], {
+            stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        const stdout = [];
+        const stderr = [];
+        child.stdout.on('data', (chunk) => stdout.push(chunk));
+        child.stderr.on('data', (chunk) => stderr.push(chunk));
+        child.on('error', (error) => {
+            resolve({ ok: false, error: error.message });
+        });
+        child.on('close', (status) => {
+            const output = Buffer.concat(stdout).toString('utf8').trim();
+            const error = Buffer.concat(stderr).toString('utf8').trim();
+            if (status === 0) {
+                resolve({ ok: true, output });
+            } else {
+                resolve({
+                    ok: false,
+                    error: error || `codex-nudge exited with status ${status}`,
+                });
+            }
+        });
+        child.stdin.end(request.prompt);
+    });
+}
+
+async function recover(processing, requests) {
+    for (const name of await fs.promises.readdir(processing)) {
+        if (!name.endsWith('.json')) continue;
+        const source = path.join(processing, name);
+        const destination = path.join(requests, name);
+        try {
+            const response = path.join(path.dirname(requests), 'responses', name);
+            if (fs.existsSync(response)) {
+                await fs.promises.unlink(source);
+            } else {
+                await fs.promises.rename(source, destination);
+            }
+        } catch (error) {
+            if (error.code !== 'ENOENT') throw error;
+        }
+    }
+}
+
+async function processRequest(options, directories, name) {
+    const queued = path.join(directories.requests, name);
+    const claimed = path.join(directories.processing, name);
+    try {
+        await fs.promises.rename(queued, claimed);
+    } catch (error) {
+        if (error.code === 'ENOENT') return;
+        throw error;
+    }
+
+    let result;
+    try {
+        const request = JSON.parse(await fs.promises.readFile(claimed, 'utf8'));
+        if (typeof request.thread !== 'string' || !request.thread.trim()) {
+            throw new Error('request has no thread id');
+        }
+        if (typeof request.prompt !== 'string' || !request.prompt.trim()) {
+            throw new Error('request has no prompt');
+        }
+        if (!request.resumeConfig || Array.isArray(request.resumeConfig) ||
+            typeof request.resumeConfig !== 'object') {
+            throw new Error('request has invalid resume config');
+        }
+        result = await runNudge(options.socket, request);
+    } catch (error) {
+        result = { ok: false, error: error.message };
+    }
+
+    const response = path.join(directories.responses, name);
+    const staged = `${response}.${process.pid}.tmp`;
+    await fs.promises.writeFile(staged, `${JSON.stringify(result)}\n`, {
+        mode: 0o600,
+    });
+    await fs.promises.rename(staged, response);
+    await fs.promises.unlink(claimed);
+}
+
+async function serve(options) {
+    const directories = {
+        requests: path.join(options.queue, 'requests'),
+        processing: path.join(options.queue, 'processing'),
+        responses: path.join(options.queue, 'responses'),
+    };
+    for (const directory of Object.values(directories)) {
+        await fs.promises.mkdir(directory, { recursive: true, mode: 0o700 });
+    }
+    await recover(directories.processing, directories.requests);
+
+    for (;;) {
+        const names = (await fs.promises.readdir(directories.requests))
+            .filter((name) => name.endsWith('.json'))
+            .sort();
+        for (const name of names) {
+            await processRequest(options, directories, name);
+        }
+        await delay(100);
+    }
+}
+
+async function start(options) {
+    const log = fs.openSync(options.log, 'a');
+    let child;
+    try {
+        child = spawn(process.execPath, [
+            __filename,
+            '--socket',
+            options.socket,
+            '--queue',
+            options.queue,
+        ], {
+            detached: true,
+            stdio: ['ignore', log, log],
+        });
+        await once(child, 'spawn');
+    } finally {
+        fs.closeSync(log);
+    }
+    child.unref();
+    process.stdout.write(`${child.pid}\n`);
+}
+
+async function main() {
+    const options = parseArgs(process.argv.slice(2));
+    if (options.start) {
+        await start(options);
+    } else {
+        await serve(options);
+    }
+}
+
+main().catch((error) => {
+    process.stderr.write(`codex-nudge-relay: ${error.message}\n`);
+    process.exitCode = 1;
+});

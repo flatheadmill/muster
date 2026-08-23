@@ -16,6 +16,7 @@ function codex_daemon_settings {
     typeset muster_root=$REPLY
     typeset codex_state=$muster_root/codex
     codex_daemon_socket=$codex_state/app-server.sock
+    codex_daemon_nudge_queue=$codex_state/nudges
     codex_daemon_model=gpt-5.6-sol
     codex_daemon_cwd=$pane_root/$slug
     # A shared app-server can resume a thread before its pane config is trusted.
@@ -131,6 +132,10 @@ function codex_nudge_bin {
     print -r -- ${functions_source[codex_nudge_bin]:A:h:h:h:h:h}/bin/codex-nudge
 }
 
+function codex_nudge_relay_bin {
+    print -r -- ${functions_source[codex_nudge_relay_bin]:A:h:h:h:h:h}/bin/codex-nudge-relay
+}
+
 function codex_session_file {
     muster_state_root
     REPLY=$REPLY/codex/$1/sid.json
@@ -201,6 +206,44 @@ function codex_app_server_running {
     "$(codex_nudge_bin)" --socket "$socket" --initialize-only >/dev/null 2>&1
 }
 
+function codex_nudge_relay_ensure {
+    typeset socket=$1
+    typeset queue=$2
+    typeset state_dir=${socket:h}
+    typeset pid_file=$state_dir/nudge-relay.pid
+    typeset lock=$state_dir/nudge-relay.lock
+    typeset log=$state_dir/nudge-relay.log
+    typeset relay_pid
+
+    mkdir -p $state_dir $queue
+    touch $lock
+    zmodload zsh/system
+    typeset lockfd
+    zsystem flock -f lockfd $lock
+
+    if [[ -f $pid_file ]]; then
+        relay_pid=$(<$pid_file)
+        if [[ $relay_pid == <-> ]] && kill -0 $relay_pid 2>/dev/null; then
+            zsystem flock -u $lockfd
+            return
+        fi
+    fi
+
+    rm -f $pid_file
+    relay_pid=$("$(codex_nudge_relay_bin)" \
+        --socket "$socket" \
+        --queue "$queue" \
+        --start \
+        --log "$log") \
+        || abend 'fatal: unable to start Codex nudge relay; see %s' "$log"
+    print -r -- $relay_pid > $pid_file
+
+    sleep 0.1
+    kill -0 $relay_pid 2>/dev/null \
+        || abend 'fatal: Codex nudge relay exited during startup; see %s' "$log"
+    zsystem flock -u $lockfd
+}
+
 function codex_app_server_ensure {
     typeset socket=$1
     typeset state_dir=${socket:h}
@@ -215,22 +258,32 @@ function codex_app_server_ensure {
     zsystem flock -f lockfd $lock
 
     if codex_app_server_running "$socket"; then
+        codex_nudge_relay_ensure "$socket" "$codex_daemon_nudge_queue"
         zsystem flock -u $lockfd
         return
     fi
 
-    # A compatibility link belongs to another daemon. Never replace it merely
-    # because this caller cannot reach its target.
-    [[ ! -L $socket ]] \
-        || abend 'fatal: shared Codex app-server at %s is unavailable' "$socket"
-
-    typeset old_pid
+    typeset old_pid signal_error
     [[ -f $pid_file ]] && old_pid=$(<$pid_file)
-    if [[ -n $old_pid ]] && kill -0 $old_pid 2>/dev/null; then
-        abend 'fatal: Codex app-server pid %s is running but %s is unavailable' "$old_pid" "$socket"
+    if [[ -n $old_pid ]]; then
+        [[ $old_pid == <-> ]] \
+            || abend 'fatal: invalid Codex app-server pid in %s' "$pid_file"
+        if signal_error=$(kill -0 $old_pid 2>&1); then
+            abend 'fatal: Codex app-server pid %s is running but %s is unavailable' "$old_pid" "$socket"
+        fi
+        [[ $signal_error == *'no such process'* ]] \
+            || abend 'fatal: unable to establish whether Codex app-server pid %s is running' "$old_pid"
     fi
 
-    rm -f $socket $pid_file
+    # An existing endpoint may belong to a healthy daemon that this caller's
+    # sandbox cannot reach. Remove it only when Muster's recorded process is
+    # definitively gone; an absent PID or an ownership error proves nothing.
+    if [[ -e $socket || -L $socket ]]; then
+        [[ ! -L $socket && -n $old_pid ]] \
+            || abend 'fatal: shared Codex app-server at %s is unavailable' "$socket"
+        rm -f $socket
+    fi
+    rm -f $pid_file
     typeset server_pid=$(
         "$(codex_nudge_bin)" --socket "$socket" --start-server --log "$log"
     )
@@ -239,6 +292,7 @@ function codex_app_server_ensure {
     integer attempt
     for attempt in {1..50}; do
         if codex_app_server_running "$socket"; then
+            codex_nudge_relay_ensure "$socket" "$codex_daemon_nudge_queue"
             zsystem flock -u $lockfd
             return
         fi
