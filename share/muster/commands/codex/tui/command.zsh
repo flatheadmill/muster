@@ -13,6 +13,8 @@ function :execute:codex:tui {
     typeset pane_dir=~/pane/$o_slug
     [[ -d $pane_dir ]] \
         || abend 'fatal: no window directory at %s; create the window before starting Codex' "$pane_dir"
+    builtin cd -- "$pane_dir" \
+        || abend 'fatal: unable to enter window directory: %s' "$pane_dir"
 
     codex_session_file $o_slug
     typeset sid_file=$REPLY
