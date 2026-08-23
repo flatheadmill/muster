@@ -28,3 +28,18 @@ Messages sent to `widget-codex` wake that standing thread after delivery. `muste
 ```console
 $ printf '%s\n' 'Review the current work.' | muster codex nudge --slug widget
 ```
+
+## OMP
+
+Each window has one OMP seat with durable, named topics. Creating a topic records its primary model without starting OMP. Running a topic makes it active, starts or resumes its transcript, and opens the window's OMP popup.
+
+```console
+$ muster omp create --slug widget --topic visual --model opus
+$ muster omp run --slug widget --topic visual
+```
+
+Once a topic is active, the TMUX binding can reopen it without naming the topic again.
+
+```console
+$ muster omp run --slug widget
+```
