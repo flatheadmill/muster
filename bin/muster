@@ -75,6 +75,13 @@ function muster_private_tmux_new_session {
     env "${muster_private_tmux_environment[@]}" tmux "$@"
 }
 
+function muster_tmux_terminal_color {
+    typeset setting
+    setting=$(tmux show-environment -g $1 2>/dev/null) || return
+    REPLY=${setting#*=}
+    [[ $REPLY == \#[[:xdigit:]][[:xdigit:]][[:xdigit:]][[:xdigit:]][[:xdigit:]][[:xdigit:]] ]]
+}
+
 function muster_messages_dir {
     muster_state_root
     REPLY=$REPLY/messages/$1

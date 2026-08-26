@@ -39,6 +39,24 @@ $ muster codex popup --slug widget --seat sol
 $ printf '%s\n' 'Implement the agreed change.' | muster messages send --slug widget-sol --from widget-codex
 ```
 
+## Grok Build
+
+Muster records one explicit Grok Build session ID for each window. The first
+run creates that conversation, and later process launches resume it in a
+persistent tmux popup.
+
+```console
+$ muster grok create --slug widget
+$ muster grok run --slug widget
+```
+
+The participant address is `widget-grok`. Grok can keep a message monitor open
+for that address when it should participate in the workspace conversation.
+
+```console
+$ muster messages monitor --slug widget-grok
+```
+
 ## OMP
 
 Each window has one OMP seat with durable, named topics. Creating a topic records its primary model without starting OMP. Running a topic makes it active, starts or resumes its transcript, and opens the window's OMP popup.

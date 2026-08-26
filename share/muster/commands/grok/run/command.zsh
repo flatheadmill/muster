@@ -1,27 +1,38 @@
-function :help:codex:popup {
-    help=$(<${functions_source[:help:codex:popup]:A:h}/help.md)
+function :help:grok:run {
+    help=$(<${functions_source[:help:grok:run]:A:h}/help.md)
 }
 
-function :args:codex:popup {
-    eval "$(args -bx h,help -s s,slug n,seat -- "$@")"
+function :args:grok:run {
+    eval "$(args -bx h,help -s s,slug -- "$@")"
 }
 
-function :execute:codex:popup {
+function :execute:grok:run {
     [[ -v o_slug ]] || abend 'fatal: --slug is required'
-    [[ -v o_seat ]] || abend 'fatal: --seat is required'
-    [[ $# -eq 0 ]] || abend 'fatal: usage: muster codex popup --slug <slug> --seat <seat>'
-    [[ -n ${TMUX:-} ]] || abend 'fatal: muster codex popup must run inside tmux'
-
-    codex_seat_settings $o_slug $o_seat
-    typeset address=$codex_seat_address
-    codex_session_file $o_slug $o_seat
-    codex_session_id_read $REPLY \
-        || abend 'fatal: Codex seat has no session: %s' "$address"
+    [[ $# -eq 0 ]] || abend 'fatal: usage: muster grok run --slug <slug>'
+    [[ -n ${TMUX:-} ]] || abend 'fatal: muster grok run must run inside tmux'
+    muster_window_slug $o_slug
 
     typeset dir=~/pane/$o_slug
     [[ -d $dir ]] || abend 'fatal: no window directory at %s' "$dir"
+    dir=${dir:A}
 
-    typeset server=muster-codex popup_command foreground= background=
+    grok_state_dir $o_slug
+    typeset state_dir=$REPLY
+    grok_session_id_read $state_dir/sid \
+        || abend 'fatal: no Grok session for window: %s' "$o_slug"
+    typeset session_id=$REPLY address=${o_slug}-grok
+
+    typeset grok_bin=${commands[grok]:-}
+    [[ -n $grok_bin ]] || abend 'fatal: grok is not installed'
+    grok_session_dir $dir $session_id
+    typeset -a grok_args=( --cwd $dir --fullscreen --trust )
+    if [[ -d $REPLY ]]; then
+        grok_args+=( --resume $session_id )
+    else
+        grok_args+=( --session-id $session_id )
+    fi
+
+    typeset server=muster-grok popup_command foreground= background=
     typeset client=$(tmux display-message -p '#{client_name}')
     [[ -n $client ]] || abend 'fatal: cannot find the current tmux client'
     if muster_tmux_terminal_color MUSTER_TERMINAL_FOREGROUND; then
@@ -62,10 +73,8 @@ function :execute:codex:popup {
             -c $dir
             -e "MUSTER_WINDOW_SLUG=$o_slug"
             -e "MUSTER_SLUG=$address"
-            "${zshctl[argzero]:A}"
-            codex tui
-            --slug $o_slug
-            --seat $o_seat
+            $grok_bin
+            "${(@)grok_args}"
         )
         popup_command=${(j: :)${(q)launch}}
     fi
