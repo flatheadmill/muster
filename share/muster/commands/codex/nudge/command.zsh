@@ -3,20 +3,31 @@ function :help:codex:nudge {
 }
 
 function :args:codex:nudge {
-    eval "$(args -bx h,help p,probe -s s,slug -- "$@")"
+    eval "$(args -bx h,help p,probe -s s,slug n,seat -- "$@")"
 }
 
 function :execute:codex:nudge {
     [[ -v o_slug ]] || abend 'fatal: slug is a required argument'
     muster_window_slug $o_slug
 
-    codex_session_file $o_slug
+    typeset seat=${o_seat:-}
+    typeset address=${o_slug}-codex
+    typeset model=gpt-5.6-sol
+    typeset effort=
+    if [[ -n $seat ]]; then
+        codex_seat_settings $o_slug $seat
+        address=$codex_seat_address
+        model=$codex_seat_model
+        effort=$codex_seat_effort
+    fi
+
+    codex_session_file $o_slug $seat
     typeset sid_file=$REPLY
     codex_session_id_read $sid_file \
         || abend 'fatal: no codex session for slug %s' "$o_slug"
     typeset session_id=$REPLY
 
-    codex_daemon_settings $o_slug
+    codex_daemon_settings $o_slug $address $model $effort
     if (( o_probe )); then
         codex_app_server_ensure $codex_daemon_socket
         "$(codex_nudge_bin)" \

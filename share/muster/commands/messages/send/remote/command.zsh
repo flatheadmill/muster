@@ -45,11 +45,14 @@ function :execute:messages:send:remote {
         [[ -z $staged ]] || rm -f $staged
     }
 
-    if [[ $slug == *-codex ]]; then
-        typeset window_slug=${slug%-codex}
+    if muster_codex_address_resolve $slug; then
+        typeset window_slug=$muster_codex_address_window
+        typeset seat=$muster_codex_address_seat
         typeset nudge="You have messages: \`muster messages read --slug $slug\`."
+        typeset -a nudge_args=( --slug $window_slug )
+        [[ -z $seat ]] || nudge_args+=( --seat $seat )
         if ! print -r -- "$nudge" |
-            "${zshctl[argzero]:A}" codex nudge --slug "$window_slug"
+            "${zshctl[argzero]:A}" codex nudge "${(@)nudge_args}"
         then
             print -u2 -- "warning: message delivered, but Codex could not be nudged: $slug"
         fi

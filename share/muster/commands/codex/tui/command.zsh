@@ -3,7 +3,7 @@ function :help:codex:tui {
 }
 
 function :args:codex:tui {
-    eval "$(args -bx h,help -s s,slug -- "$@")"
+    eval "$(args -bx h,help -s s,slug n,seat -- "$@")"
 }
 
 function :execute:codex:tui {
@@ -16,25 +16,40 @@ function :execute:codex:tui {
     builtin cd -- "$pane_dir" \
         || abend 'fatal: unable to enter window directory: %s' "$pane_dir"
 
-    codex_session_file $o_slug
+    typeset seat=${o_seat:-}
+    typeset address=${o_slug}-codex
+    typeset model=gpt-5.6-sol
+    typeset effort=
+    if [[ -n $seat ]]; then
+        codex_seat_settings $o_slug $seat
+        address=$codex_seat_address
+        model=$codex_seat_model
+        effort=$codex_seat_effort
+    fi
+
+    codex_session_file $o_slug $seat
     typeset sid_file=$REPLY
     typeset -a codex_args=( "$@" )
     export MUSTER_WINDOW_SLUG=$o_slug
-    export MUSTER_SLUG=${o_slug}-codex
+    export MUSTER_SLUG=$address
 
     codex_pane_configure $o_slug
 
     typeset session_id
     if codex_session_id_read $sid_file; then
         session_id=$REPLY
+    elif [[ -n $seat ]]; then
+        abend 'fatal: Codex seat has no session: %s' "$address"
     else
-        codex_session_start $o_slug $sid_file
+        codex_session_start $o_slug $sid_file $address $model $effort
         codex_session_id_read $sid_file
         session_id=$REPLY
     fi
 
-    codex_daemon_settings $o_slug
-    "${zshctl[argzero]:A}" codex nudge --slug $o_slug --probe >/dev/null \
+    codex_daemon_settings $o_slug $address $model $effort
+    typeset -a nudge_args=( --slug $o_slug --probe )
+    [[ -z $seat ]] || nudge_args+=( --seat $seat )
+    "${zshctl[argzero]:A}" codex nudge "${(@)nudge_args}" >/dev/null \
         || abend 'fatal: unable to configure daemon-backed Codex session'
 
     exec codex resume --remote "unix://$codex_daemon_socket" \

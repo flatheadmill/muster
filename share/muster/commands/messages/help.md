@@ -8,9 +8,9 @@ Display help for `muster messages`.
 addresses such as `widget-codex` or `widget-fable`. Messages are durable and
 remain unread until the recipient runs `muster messages read`.
 
-Delivery to an address ending in `-codex` also nudges the corresponding
-standing Codex thread. A failed nudge does not roll back delivery; the message
-remains unread in the recipient's inbox.
+Delivery to the default `<slug>-codex` address or a registered named Codex seat
+also nudges the corresponding standing thread. A failed nudge does not roll
+back delivery; the message remains unread in the recipient's inbox.
 
 By default, inboxes live under `$XDG_STATE_HOME/muster/messages`, or under
 `~/.local/state/muster/messages` when `XDG_STATE_HOME` is unset. Set

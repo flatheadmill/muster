@@ -4,6 +4,8 @@ Submit one turn to a standing Codex session.
 Display help for `muster codex nudge`.
 # opt slug -- name
 The window slug to nudge. Required.
+# opt seat -- name
+Nudge a named seat instead of the window's default Codex participant.
 # opt probe
 Configure and resume the thread without starting a turn.
 # man

@@ -29,6 +29,16 @@ Messages sent to `widget-codex` wake that standing thread after delivery. `muste
 $ printf '%s\n' 'Review the current work.' | muster codex nudge --slug widget
 ```
 
+A window may also have an explicitly created named Codex seat. The seat has its
+own durable thread and Muster address while sharing the window directory and
+Wicket endpoint.
+
+```console
+$ muster codex create --slug widget --seat sol --effort high
+$ muster codex popup --slug widget --seat sol
+$ printf '%s\n' 'Implement the agreed change.' | muster messages send --slug widget-sol --from widget-codex
+```
+
 ## OMP
 
 Each window has one OMP seat with durable, named topics. Creating a topic records its primary model without starting OMP. Running a topic makes it active, starts or resumes its transcript, and opens the window's OMP popup.

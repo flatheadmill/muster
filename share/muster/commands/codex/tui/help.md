@@ -4,11 +4,13 @@ Open or resume a window's Codex session.
 Display help for `muster codex tui`.
 # opt slug -- name
 The window slug to open or resume. Required.
+# opt seat -- name
+Open a named seat instead of the window's default Codex participant.
 # man
 ## DESCRIPTION
 `muster codex tui` opens the standing Codex thread for a window in the terminal
-UI. It creates a thread when the window has none and otherwise resumes the
-thread recorded in Muster's state.
+UI. The default participant creates a thread when the window has none. A named
+seat must first be created explicitly with `muster codex create`.
 
 The directory `~/pane/<slug>` must already exist. The session uses the shared
 Codex app-server, the window's Wicket MCP endpoint, and the standard

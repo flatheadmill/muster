@@ -42,41 +42,67 @@ function muster_state_root {
     REPLY=${MUSTER_STATE_HOME:-$base/muster}
 }
 
+typeset -ga muster_private_tmux_environment=(
+    -u TMUX
+    -u AI_AGENT
+    -u ASDF_INSTALL_PATH
+    -u ASDF_INSTALL_TYPE
+    -u ASDF_INSTALL_VERSION
+    -u CLAUDECODE
+    -u CLAUDE_CODE_CHILD_SESSION
+    -u CLAUDE_CODE_ENTRYPOINT
+    -u CLAUDE_CODE_EXECPATH
+    -u CLAUDE_CODE_SESSION_ID
+    -u CLAUDE_EFFORT
+    -u CODEX_CI
+    -u CODEX_SANDBOX_NETWORK_DISABLED
+    -u CODEX_THREAD_ID
+    -u COREPACK_ENABLE_AUTO_PIN
+    -u GH_PAGER
+    -u GIT_EDITOR
+    -u GIT_PAGER
+    -u LC_ALL
+    -u LC_CTYPE
+    -u NO_COLOR
+    -u NoDefaultCurrentDirectoryInExePath
+    -u PAGER
+    -u ZSHCTL_HELP_TEXT
+    COLORTERM=truecolor
+)
+
 function muster_private_tmux_new_session {
     emulate -L zsh
-
-    env \
-        -u TMUX \
-        -u AI_AGENT \
-        -u ASDF_INSTALL_PATH \
-        -u ASDF_INSTALL_TYPE \
-        -u ASDF_INSTALL_VERSION \
-        -u CLAUDECODE \
-        -u CLAUDE_CODE_CHILD_SESSION \
-        -u CLAUDE_CODE_ENTRYPOINT \
-        -u CLAUDE_CODE_EXECPATH \
-        -u CLAUDE_CODE_SESSION_ID \
-        -u CLAUDE_EFFORT \
-        -u CODEX_CI \
-        -u CODEX_SANDBOX_NETWORK_DISABLED \
-        -u CODEX_THREAD_ID \
-        -u COREPACK_ENABLE_AUTO_PIN \
-        -u GH_PAGER \
-        -u GIT_EDITOR \
-        -u GIT_PAGER \
-        -u LC_ALL \
-        -u LC_CTYPE \
-        -u NO_COLOR \
-        -u NoDefaultCurrentDirectoryInExePath \
-        -u PAGER \
-        -u ZSHCTL_HELP_TEXT \
-        COLORTERM=truecolor \
-        tmux "$@"
+    env "${muster_private_tmux_environment[@]}" tmux "$@"
 }
 
 function muster_messages_dir {
     muster_state_root
     REPLY=$REPLY/messages/$1
+}
+
+function muster_codex_address_resolve {
+    typeset address=$1
+
+    if [[ $address == *-codex ]]; then
+        typeset slug=${address%-codex}
+        if muster_window_slug $slug 2>/dev/null; then
+            muster_codex_address_window=$slug
+            muster_codex_address_seat=
+            return
+        fi
+    fi
+
+    muster_state_root
+    typeset config configured
+    for config in $REPLY/codex/*/seats/*/config.json(N); do
+        configured=$(jq -r '.address // empty' $config 2>/dev/null) || continue
+        if [[ $configured == $address ]]; then
+            muster_codex_address_window=${config:h:h:h:t}
+            muster_codex_address_seat=${config:h:t}
+            return
+        fi
+    done
+    return 1
 }
 
 function muster_messages_configure {

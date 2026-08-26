@@ -8,6 +8,9 @@ function :args:codex {
 
 function codex_daemon_settings {
     typeset slug=$1
+    typeset address=${2:-${slug}-codex}
+    typeset model=${3:-gpt-5.6-sol}
+    typeset effort=${4:-}
     typeset code_root=$HOME/code
     typeset pane_root=$HOME/pane
     typeset mcp_url="http://localhost:6502/mcp/$slug"
@@ -17,20 +20,23 @@ function codex_daemon_settings {
     typeset codex_state=$muster_root/codex
     codex_daemon_socket=$codex_state/app-server.sock
     codex_daemon_nudge_queue=$codex_state/nudges
-    codex_daemon_model=gpt-5.6-sol
+    codex_daemon_model=$model
+    codex_daemon_effort=$effort
+    codex_daemon_address=$address
     codex_daemon_cwd=$pane_root/$slug
     # A shared app-server can resume a thread before its pane config is trusted.
     # Carry the window's MCP route on the thread as part of every resume.
     codex_daemon_resume_config=$(jq -cn \
         --arg model "$codex_daemon_model" \
+        --arg effort "$codex_daemon_effort" \
         --arg cwd "$codex_daemon_cwd" \
         --arg code_root "$code_root" \
         --arg pane_root "$pane_root" \
         --arg muster_root "$muster_root" \
         --arg window_slug "$slug" \
-        --arg agent_slug "${slug}-codex" \
+        --arg agent_slug "$codex_daemon_address" \
         --arg mcp_url "$mcp_url" '
-        {
+        ({
             model: $model,
             cwd: $cwd,
             runtimeWorkspaceRoots: [$code_root, $pane_root, $muster_root],
@@ -60,7 +66,7 @@ function codex_daemon_settings {
                     }
                 }
             }
-        }
+        } + if $effort == "" then {} else {effort: $effort} end)
     ')
     codex_mcp_cli_args=(
         --disable apps
@@ -81,8 +87,11 @@ function codex_daemon_settings {
         -c 'sandbox_workspace_write.network_access=true'
         -c "sandbox_workspace_write.writable_roots=[\"$code_root\", \"$pane_root\", \"$muster_root\"]"
         -c "shell_environment_policy.set.MUSTER_WINDOW_SLUG=\"$slug\""
-        -c "shell_environment_policy.set.MUSTER_SLUG=\"${slug}-codex\""
+        -c "shell_environment_policy.set.MUSTER_SLUG=\"$codex_daemon_address\""
         "${(@)codex_mcp_cli_args}"
+    )
+    [[ -z $codex_daemon_effort ]] || codex_daemon_cli_args+=(
+        -c "model_reasoning_effort=\"$codex_daemon_effort\""
     )
 }
 
@@ -137,8 +146,45 @@ function codex_nudge_relay_bin {
 }
 
 function codex_session_file {
+    typeset slug=$1
+    typeset seat=${2:-}
     muster_state_root
-    REPLY=$REPLY/codex/$1/sid.json
+    if [[ -n $seat ]]; then
+        REPLY=$REPLY/codex/$slug/seats/$seat/sid.json
+    else
+        REPLY=$REPLY/codex/$slug/sid.json
+    fi
+}
+
+function codex_seat_config_file {
+    typeset slug=$1 seat=$2
+    muster_state_root
+    REPLY=$REPLY/codex/$slug/seats/$seat/config.json
+}
+
+function codex_seat_settings {
+    typeset slug=$1 seat=$2
+    muster_window_slug $slug
+    muster_window_slug $seat
+
+    codex_seat_config_file $slug $seat
+    typeset config=$REPLY
+    [[ -f $config ]] || abend 'fatal: unknown Codex seat: %s-%s' "$slug" "$seat"
+
+    codex_seat_address=$(jq -er '.address | strings | select(length > 0)' $config 2>/dev/null) \
+        || abend 'fatal: Codex seat has no address: %s-%s' "$slug" "$seat"
+    codex_seat_model=$(jq -er '.model | strings | select(length > 0)' $config 2>/dev/null) \
+        || abend 'fatal: Codex seat has no model: %s-%s' "$slug" "$seat"
+    codex_seat_effort=$(jq -er '.effort | strings | select(length > 0)' $config 2>/dev/null) \
+        || abend 'fatal: Codex seat has no effort: %s-%s' "$slug" "$seat"
+
+    [[ $codex_seat_address == ${slug}-${seat} ]] \
+        || abend 'fatal: Codex seat address does not match %s-%s' "$slug" "$seat"
+    muster_address $codex_seat_address
+    case $codex_seat_effort in
+        (low|medium|high|xhigh) ;;
+        (*) abend 'fatal: invalid Codex effort for %s: %s' "$codex_seat_address" "$codex_seat_effort" ;;
+    esac
 }
 
 function codex_session_id_read {
@@ -154,6 +200,9 @@ function codex_session_id_read {
 function codex_session_start {
     typeset slug=$1
     typeset sid_file=$2
+    typeset address=${3:-${slug}-codex}
+    typeset model=${4:-gpt-5.6-sol}
+    typeset effort=${5:-}
     typeset sid_dir=${sid_file:h}
     typeset lock=$sid_dir/sid.lock
     typeset sid_tmp response session_id
@@ -172,7 +221,7 @@ function codex_session_start {
         sid_tmp=$(mktemp $sid_dir/.sid.json.XXXXXX) \
             || abend 'fatal: unable to prepare codex session id for slug %s' "$slug"
 
-        codex_daemon_settings $slug
+        codex_daemon_settings $slug $address $model $effort
         codex_app_server_ensure $codex_daemon_socket
         response=$(
             "$(codex_nudge_bin)" \
