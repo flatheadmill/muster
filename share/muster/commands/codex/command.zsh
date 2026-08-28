@@ -8,7 +8,7 @@ function :args:codex {
 
 function codex_daemon_settings {
     typeset slug=$1
-    typeset address=${2:-${slug}-codex}
+    typeset address=${2:-$slug}
     typeset model=${3:-gpt-5.6-sol}
     typeset effort=${4:-}
     typeset code_root=$HOME/code
@@ -200,7 +200,7 @@ function codex_session_id_read {
 function codex_session_start {
     typeset slug=$1
     typeset sid_file=$2
-    typeset address=${3:-${slug}-codex}
+    typeset address=${3:-$slug}
     typeset model=${4:-gpt-5.6-sol}
     typeset effort=${5:-}
     typeset sid_dir=${sid_file:h}

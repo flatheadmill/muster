@@ -90,13 +90,10 @@ function muster_messages_dir {
 function muster_codex_address_resolve {
     typeset address=$1
 
-    if [[ $address == *-codex ]]; then
-        typeset slug=${address%-codex}
-        if muster_window_slug $slug 2>/dev/null; then
-            muster_codex_address_window=$slug
-            muster_codex_address_seat=
-            return
-        fi
+    if [[ $address != *-* ]]; then
+        muster_codex_address_window=$address
+        muster_codex_address_seat=
+        return
     fi
 
     muster_state_root

@@ -5,8 +5,8 @@ Display help for `muster codex`.
 # man
 ## DESCRIPTION
 `muster codex` associates a standing Codex thread with each named window. The
-default thread works from `~/pane/<slug>` and is addressed as `<slug>-codex` by
-the message system. Explicit named seats use the address `<slug>-<seat>` while
+default thread works from `~/pane/<slug>` and uses `<slug>` as its message
+address. Explicit named seats use the address `<slug>-<seat>` while
 sharing the same window directory and Wicket endpoint.
 
 Sessions run through one shared Codex app-server. `muster codex create` creates

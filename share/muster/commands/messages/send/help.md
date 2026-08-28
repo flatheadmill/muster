@@ -16,7 +16,7 @@ when it is beneath `~/pane`. A known sender receives an outbox copy.
 
 ```
 printf '%s\n' 'Please review the change.' |
-    muster messages send --slug widget-fable --from widget-codex
+    muster messages send --slug widget-fable --from widget
 ```
 ## OPTIONS
 > options

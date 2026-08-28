@@ -11,7 +11,7 @@ function :execute:codex:nudge {
     muster_window_slug $o_slug
 
     typeset seat=${o_seat:-}
-    typeset address=${o_slug}-codex
+    typeset address=$o_slug
     typeset model=gpt-5.6-sol
     typeset effort=
     if [[ -n $seat ]]; then

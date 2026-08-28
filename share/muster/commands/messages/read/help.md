@@ -10,7 +10,7 @@ The recipient address. Required.
 cursor, then advances the cursor to the final message in the batch.
 
 ```
-muster messages read --slug widget-codex
+muster messages read --slug widget
 ```
 ## OPTIONS
 > options

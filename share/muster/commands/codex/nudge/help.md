@@ -16,7 +16,8 @@ prompt read from standard input, and reports when the app-server accepts the
 turn. This lets a command running inside a Codex sandbox wake a standing thread
 without opening the app-server's Unix socket itself.
 
-Message delivery uses this command for addresses ending in `-codex`. `--probe`
+Message delivery uses this command for bare window addresses and registered
+named Codex seats. `--probe`
 loads the thread without submitting a prompt and starts the shared daemon and
 relay when needed.
 ## OPTIONS

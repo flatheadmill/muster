@@ -5,7 +5,7 @@
 The first utility is a file-backed message system. Each participant has an address, an inbox, an outbox, and a read cursor. Participants can send and read batches directly, wait for one message, run a one-shot listener, or keep a streaming monitor open for the life of a session.
 
 ```console
-$ printf '%s\n' 'Please review the change.' | muster messages send --slug widget-fable --from widget-codex
+$ printf '%s\n' 'Please review the change.' | muster messages send --slug widget-fable --from widget
 {"status":"ok","file":"2026-08-15T09-41-12.123456.1234"}
 
 $ muster messages read --slug widget-fable
@@ -23,7 +23,7 @@ Muster keeps one standing Codex thread for each window. The interactive TUI and 
 $ muster codex tui --slug widget
 ```
 
-Messages sent to `widget-codex` wake that standing thread after delivery. `muster codex nudge` provides the same mechanism directly.
+Messages sent to `widget` wake that standing thread after delivery. `muster codex nudge` provides the same mechanism directly.
 
 ```console
 $ printf '%s\n' 'Review the current work.' | muster codex nudge --slug widget
@@ -36,7 +36,7 @@ Wicket endpoint.
 ```console
 $ muster codex create --slug widget --seat sol --effort high
 $ muster codex popup --slug widget --seat sol
-$ printf '%s\n' 'Implement the agreed change.' | muster messages send --slug widget-sol --from widget-codex
+$ printf '%s\n' 'Implement the agreed change.' | muster messages send --slug widget-sol --from widget
 ```
 
 ## Grok Build

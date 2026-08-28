@@ -10,7 +10,7 @@ The participant address. Required.
 delivery order. Messages are separated by Markdown horizontal rules.
 
 ```
-muster messages transcript --slug widget-codex
+muster messages transcript --slug widget
 ```
 ## OPTIONS
 > options

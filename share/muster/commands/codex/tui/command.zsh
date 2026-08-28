@@ -17,7 +17,7 @@ function :execute:codex:tui {
         || abend 'fatal: unable to enter window directory: %s' "$pane_dir"
 
     typeset seat=${o_seat:-}
-    typeset address=${o_slug}-codex
+    typeset address=$o_slug
     typeset model=gpt-5.6-sol
     typeset effort=
     if [[ -n $seat ]]; then

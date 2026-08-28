@@ -5,10 +5,10 @@ Display help for `muster messages`.
 # man
 ## DESCRIPTION
 `muster messages` provides file-backed inboxes for participants identified by
-addresses such as `widget-codex` or `widget-fable`. Messages are durable and
+addresses such as `widget` or `widget-fable`. Messages are durable and
 remain unread until the recipient runs `muster messages read`.
 
-Delivery to the default `<slug>-codex` address or a registered named Codex seat
+Delivery to the default `<slug>` address or a registered named Codex seat
 also nudges the corresponding standing thread. A failed nudge does not roll
 back delivery; the message remains unread in the recipient's inbox.
 
