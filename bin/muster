@@ -152,6 +152,232 @@ function muster_write_cursor {
         abend 'fatal: unable to update cursor: %s' "$cursor_path"
 }
 
+function muster_claude_profile {
+    typeset profile=$1 slug=$2
+    case $profile in
+        (claude)
+            muster_claude_address=${slug}-claude
+            muster_claude_model='opus[1m]'
+            muster_claude_effort=medium
+            ;;
+        (fable)
+            muster_claude_address=${slug}-fable
+            muster_claude_model='claude-fable-5[1m]'
+            muster_claude_effort=high
+            ;;
+        (*)
+            abend 'fatal: unknown Claude profile: %s' "$profile"
+            ;;
+    esac
+}
+
+function muster_claude_session_id {
+    typeset profile=$1 slug=$2
+    muster_state_root
+    typeset state_dir=$REPLY/$profile/$slug
+    typeset sid_file=$state_dir/sid
+
+    if [[ -s $sid_file ]]; then
+        REPLY=$(<$sid_file)
+        jq -en --arg id "$REPLY" '
+            $id | test("^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$")
+        ' >/dev/null || abend 'fatal: invalid Claude session ID in %s' "$sid_file"
+        return
+    fi
+
+    (( ${+commands[uuidgen]} )) || abend 'fatal: uuidgen is not installed'
+    mkdir -p $state_dir
+    typeset session_id=$(uuidgen) \
+        || abend 'fatal: cannot generate Claude session ID'
+    session_id=${(L)session_id}
+    typeset staged=$(mktemp $state_dir/.sid.XXXXXX) \
+        || abend 'fatal: cannot stage Claude session ID'
+    {
+        print -r -- $session_id > $staged \
+            || abend 'fatal: cannot record Claude session ID'
+        chmod 600 $staged
+        mv $staged $sid_file \
+            || abend 'fatal: cannot install Claude session ID'
+        staged=
+    } always {
+        [[ -z $staged ]] || rm -f $staged
+    }
+    REPLY=$session_id
+}
+
+function muster_claude_project_configure {
+    typeset slug=$1
+    typeset dir=~/pane/$slug
+    typeset claude_dir=$dir/.claude
+    typeset mcp_config=$dir/.mcp.json
+    typeset settings_config=$claude_dir/settings.local.json
+    typeset mcp_url="http://localhost:6502/mcp/$slug"
+    typeset mcp_tmp= settings_tmp=
+
+    mkdir -p $claude_dir
+    {
+        mcp_tmp=$(mktemp $dir/.mcp.json.XXXXXX) \
+            || abend 'fatal: cannot stage %s' "$mcp_config"
+        if [[ -f $mcp_config ]]; then
+            jq --arg url "$mcp_url" '
+                if type != "object" then error(".mcp.json root must be an object") else . end
+                | .mcpServers = ((.mcpServers // {}) + {
+                    "o": {"type": "http", "url": $url}
+                })
+            ' $mcp_config > $mcp_tmp || abend 'fatal: cannot update %s' "$mcp_config"
+        else
+            jq -n --arg url "$mcp_url" '{
+                mcpServers: {"o": {type: "http", url: $url}}
+            }' > $mcp_tmp || abend 'fatal: cannot write %s' "$mcp_config"
+        fi
+        mv $mcp_tmp $mcp_config || abend 'fatal: cannot install %s' "$mcp_config"
+        mcp_tmp=
+
+        settings_tmp=$(mktemp $claude_dir/.settings.local.json.XXXXXX) \
+            || abend 'fatal: cannot stage %s' "$settings_config"
+        if [[ -f $settings_config ]]; then
+            jq '
+                if type != "object" then error("settings.local.json root must be an object") else . end
+                | .permissions = ((.permissions // {}) | .allow = (((.allow // []) + [
+                    "mcp__o__tools",
+                    "mcp__o__call"
+                ]) | unique))
+                | .enabledMcpjsonServers = (((.enabledMcpjsonServers // []) + ["o"]) | unique)
+                | (if has("disabledMcpjsonServers") then .disabledMcpjsonServers -= ["o"] else . end)
+                | .hooks = (.hooks // {})
+                | .hooks.PreToolUse = (
+                    (.hooks.PreToolUse // []) |
+                    if any(.[]; .matcher == "mcp__o__call" and any((.hooks // [])[]; .command == "muster claude hook PreToolUse"))
+                    then .
+                    else . + [{"matcher": "mcp__o__call", "hooks": [{"type": "command", "command": "muster claude hook PreToolUse"}]}]
+                    end
+                  )
+            ' $settings_config > $settings_tmp \
+                || abend 'fatal: cannot update %s' "$settings_config"
+        else
+            jq -n '{
+                enabledMcpjsonServers: ["o"],
+                permissions: {allow: ["mcp__o__call", "mcp__o__tools"]},
+                hooks: {PreToolUse: [{
+                    matcher: "mcp__o__call",
+                    hooks: [{type: "command", command: "muster claude hook PreToolUse"}]
+                }]}
+            }' > $settings_tmp || abend 'fatal: cannot write %s' "$settings_config"
+        fi
+        mv $settings_tmp $settings_config \
+            || abend 'fatal: cannot install %s' "$settings_config"
+        settings_tmp=
+    } always {
+        [[ -z $mcp_tmp ]] || rm -f $mcp_tmp
+        [[ -z $settings_tmp ]] || rm -f $settings_tmp
+    }
+
+    typeset claude_config=${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json
+    [[ -f ${CLAUDE_CONFIG_DIR:-$HOME}/.config.json ]] \
+        && claude_config=${CLAUDE_CONFIG_DIR:-$HOME}/.config.json
+    typeset pane_dir=${dir:A}
+    if [[ -f $claude_config ]] \
+        && [[ "$(jq -r --arg d "$pane_dir" '.projects[$d].hasTrustDialogAccepted // false' $claude_config 2>/dev/null)" != true ]]
+    then
+        typeset trust_tmp=$(mktemp "${claude_config}.XXXXXX" 2>/dev/null)
+        if [[ -n $trust_tmp ]] \
+            && jq --arg d "$pane_dir" '.projects //= {} | .projects[$d] //= {} | .projects[$d].hasTrustDialogAccepted = true' $claude_config > $trust_tmp 2>/dev/null \
+            && jq -e . $trust_tmp >/dev/null 2>&1
+        then
+            chmod 600 $trust_tmp && mv $trust_tmp $claude_config \
+                || { rm -f $trust_tmp; printf 'warning: could not install Claude trust for %s\n' "$pane_dir" >&2; }
+        else
+            [[ -n $trust_tmp ]] && rm -f $trust_tmp
+            printf 'warning: could not mark %s trusted in %s\n' "$pane_dir" "$claude_config" >&2
+        fi
+    fi
+}
+
+function muster_claude_run {
+    typeset profile=$1 slug=$2
+    muster_window_slug $slug
+    [[ -n ${TMUX:-} ]] || abend 'fatal: Muster Claude participants must run inside tmux'
+    muster_claude_profile $profile $slug
+
+    typeset address=$muster_claude_address
+    typeset model=$muster_claude_model
+    typeset effort=$muster_claude_effort
+    muster_claude_session_id $profile $slug
+    typeset session_id=$REPLY
+    typeset dir=${HOME}/pane/$slug
+    [[ -d $dir ]] || abend 'fatal: no window directory at %s' "$dir"
+    dir=${dir:A}
+    muster_claude_project_configure $slug
+
+    typeset claude_bin=${commands[claude]:-}
+    [[ -n $claude_bin ]] || abend 'fatal: claude is not installed'
+    typeset encoded_dir=${dir//\//-}
+    typeset transcript=${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/$encoded_dir/$session_id.jsonl
+    typeset -a session_args=( --session-id $session_id 'Ping.' )
+    [[ ! -f $transcript ]] || session_args=( --resume $session_id )
+    typeset shell=${commands[zsh]:-}
+    [[ -n $shell ]] || abend 'fatal: zsh is not installed'
+    typeset server=muster-claude foreground= background=
+    typeset client=$(tmux display-message -p '#{client_name}')
+    [[ -n $client ]] || abend 'fatal: cannot find the current tmux client'
+    if muster_tmux_terminal_color MUSTER_TERMINAL_FOREGROUND; then
+        foreground=$REPLY
+    fi
+    if muster_tmux_terminal_color MUSTER_TERMINAL_BACKGROUND; then
+        background=$REPLY
+    fi
+
+    if ! env -u TMUX tmux -L $server has-session -t "=$address" 2>/dev/null; then
+        typeset -a launch=(
+            -L $server
+            start-server
+            ';' set-option -g prefix C-a
+            ';' unbind-key C-b
+            ';' bind-key C-a send-prefix
+            ';' set-option -g status off
+            ';' set-option -g default-shell $shell
+            ';' set-environment -g SHELL $shell
+        )
+        if [[ -n $foreground && -n $background ]]; then
+            launch+=(
+                ';' set-option -gw window-style "fg=$foreground,bg=$background"
+            )
+        fi
+        launch+=(
+            ';' new-session
+            -d
+            -s $address
+            -c $dir
+            -e "MUSTER_WINDOW_SLUG=$slug"
+            -e "MUSTER_SLUG=$address"
+            $claude_bin
+            --add-dir $HOME/code
+            --verbose
+            --thinking-display summarized
+            --effort $effort
+            --model $model
+            --thinking adaptive
+            "${(@)session_args}"
+        )
+        muster_private_tmux_new_session "${(@)launch}" \
+            || abend 'fatal: cannot start Claude participant: %s' "$address"
+    else
+        env -u TMUX tmux -L $server set-option -g prefix C-a
+        env -u TMUX tmux -L $server unbind-key C-b 2>/dev/null
+        env -u TMUX tmux -L $server bind-key C-a send-prefix
+        env -u TMUX tmux -L $server set-option -g status off
+        env -u TMUX tmux -L $server set-option -g default-shell $shell
+        env -u TMUX tmux -L $server set-environment -g SHELL $shell
+        if [[ -n $foreground && -n $background ]]; then
+            env -u TMUX tmux -L $server set-option -gw window-style \
+                "fg=$foreground,bg=$background"
+        fi
+    fi
+
+    tmux display-popup -c $client -B -E -w 100% -h 100% \
+        "env -u TMUX tmux -L ${(q)server} attach-session -d -t ${(q)address}"
+}
+
 function :execute {
     delegate "$@"
 }

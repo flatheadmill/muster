@@ -52,6 +52,19 @@ session.
 $ muster collaboration --slug widget
 ```
 
+## Claude Code
+
+Claude and Fable run as persistent participants in private tmux popups. Muster
+creates their session IDs automatically, initializes each conversation with
+`Ping.`, and resumes it after a process restart.
+
+```console
+$ muster claude run --slug widget
+$ muster fable run --slug widget
+```
+
+Their Muster addresses are `widget-claude` and `widget-fable`.
+
 ## Grok Build
 
 Muster records one explicit Grok Build session ID for each window. The first
