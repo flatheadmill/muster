@@ -10,13 +10,17 @@ function :execute:codex:tui {
     [[ -v o_slug ]] || abend 'fatal: slug is a required argument'
     muster_window_slug $o_slug
 
+    typeset seat=${o_seat:-}
     typeset pane_dir=~/pane/$o_slug
-    [[ -d $pane_dir ]] \
-        || abend 'fatal: no window directory at %s; create the window before starting Codex' "$pane_dir"
+    if [[ ! -d $pane_dir ]]; then
+        [[ -z $seat ]] \
+            || abend 'fatal: no window directory at %s; open the main Codex participant before opening a seat' "$pane_dir"
+        mkdir -p -- $pane_dir \
+            || abend 'fatal: unable to create window directory: %s' "$pane_dir"
+    fi
     builtin cd -- "$pane_dir" \
         || abend 'fatal: unable to enter window directory: %s' "$pane_dir"
 
-    typeset seat=${o_seat:-}
     typeset address=$o_slug
     typeset model=gpt-5.6-sol
     typeset effort=

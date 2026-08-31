@@ -26,14 +26,14 @@ function :args {
 function muster_address {
     emulate -L zsh
     setopt extendedglob
-    [[ ${1:-} == [a-z0-9]##(-[a-z0-9]##)# ]] ||
+    [[ ${1:-} == [a-z0-9]##(_[a-z0-9]##)#(-[a-z0-9]##(_[a-z0-9]##)#)# ]] ||
         abend 'fatal: invalid address: %s' "${1:-(empty)}"
 }
 
 function muster_window_slug {
     emulate -L zsh
     setopt extendedglob
-    [[ ${1:-} == [a-z0-9]## ]] ||
+    [[ ${1:-} == [a-z0-9]##(_[a-z0-9]##)# ]] ||
         abend 'fatal: invalid window slug: %s' "${1:-(empty)}"
 }
 

@@ -19,8 +19,10 @@ Run `muster messages --help` for storage and remote-host configuration.
 
 Muster keeps one standing Codex thread for each window. The interactive TUI and message-triggered turns use the same shared app-server configuration, so a conversation continues whether or not its terminal is open.
 
+Opening a new window creates its room at `~/pane/<slug>`. Room slugs use lowercase letters, digits, and underscores; hyphens separate a room from a named participant.
+
 ```console
-$ muster codex tui --slug widget
+$ muster codex tui --slug widget_502
 ```
 
 Messages sent to `widget` wake that standing thread after delivery. `muster codex nudge` provides the same mechanism directly.
