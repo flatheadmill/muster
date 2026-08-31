@@ -41,6 +41,17 @@ $ muster codex popup --slug widget --seat sol
 $ printf '%s\n' 'Implement the agreed change.' | muster messages send --slug widget-sol --from widget
 ```
 
+## Collaboration
+
+A persistent collaboration popup opens the standing Codex thread in a private
+tmux session rooted in the same window directory. The session can be split as
+needed. Closing the popup detaches it; opening it again returns to the running
+session.
+
+```console
+$ muster collaboration --slug widget
+```
+
 ## Grok Build
 
 Muster records one explicit Grok Build session ID for each window. The first
