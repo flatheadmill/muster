@@ -6,9 +6,9 @@ Display help for `muster grok run`.
 Set the window slug. Required.
 # man
 ## DESCRIPTION
-`muster grok run` opens an explicitly created Grok Build session in a
-full-screen tmux popup. The first launch assigns Muster's recorded session ID;
-later process launches resume the same Grok conversation.
+`muster grok run` opens a Grok Build session in a full-screen tmux popup. When
+the window has no Grok session, Muster reserves its session ID automatically.
+Later process launches resume the same Grok conversation.
 
 Muster marks `~/pane/<slug>` as trusted when Grok starts. Grok otherwise uses
 its existing model, reasoning, and permission configuration.

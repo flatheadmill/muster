@@ -18,8 +18,11 @@ function :execute:grok:run {
 
     grok_state_dir $o_slug
     typeset state_dir=$REPLY
-    grok_session_id_read $state_dir/sid \
-        || abend 'fatal: no Grok session for window: %s' "$o_slug"
+    if ! grok_session_id_read $state_dir/sid; then
+        [[ ! -e $state_dir ]] \
+            || abend 'fatal: invalid Grok session for window: %s' "$o_slug"
+        grok_session_create $o_slug
+    fi
     typeset session_id=$REPLY address=${o_slug}-grok
 
     typeset grok_bin=${commands[grok]:-}

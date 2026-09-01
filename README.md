@@ -41,6 +41,13 @@ $ muster codex popup --slug widget --seat sol
 $ printf '%s\n' 'Implement the agreed change.' | muster messages send --slug widget-sol --from widget
 ```
 
+Opening the conventional `sol` seat creates it automatically with `xhigh`
+reasoning effort when needed:
+
+```console
+$ muster codex popup --slug widget --seat sol
+```
+
 ## Collaboration
 
 A persistent collaboration popup opens the standing Codex thread in a private
@@ -67,9 +74,10 @@ Their Muster addresses are `widget-claude` and `widget-fable`.
 
 ## Grok Build
 
-Muster records one explicit Grok Build session ID for each window. The first
-run creates that conversation, and later process launches resume it in a
-persistent tmux popup.
+Muster records one Grok Build session ID for each window. The first run creates
+that conversation automatically, and later process launches resume it in a
+persistent tmux popup. `muster grok create --slug widget` can reserve the ID
+without starting Grok when needed.
 
 ```console
 $ muster grok create --slug widget

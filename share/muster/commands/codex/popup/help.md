@@ -11,5 +11,8 @@ Set the named Codex seat.
 `muster codex popup` opens an existing named seat in a full-screen tmux popup.
 The seat runs in a persistent private tmux session, so closing and reopening the
 popup returns to the same Codex TUI and thread.
+
+The `sol` seat is created automatically with `xhigh` reasoning effort when it
+does not exist. Other named seats remain explicit.
 ## OPTIONS
 > options

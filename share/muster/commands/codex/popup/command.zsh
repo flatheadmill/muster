@@ -11,6 +11,17 @@ function :execute:codex:popup {
     [[ -v o_seat ]] || abend 'fatal: --seat is required'
     [[ $# -eq 0 ]] || abend 'fatal: usage: muster codex popup --slug <slug> --seat <seat>'
     [[ -n ${TMUX:-} ]] || abend 'fatal: muster codex popup must run inside tmux'
+    muster_window_slug $o_slug
+    muster_window_slug $o_seat
+
+    codex_seat_config_file $o_slug $o_seat
+    if [[ $o_seat == sol && ! -e $REPLY ]]; then
+        "${zshctl[argzero]:A}" codex create \
+            --slug $o_slug \
+            --seat sol \
+            --effort xhigh \
+            >/dev/null
+    fi
 
     codex_seat_settings $o_slug $o_seat
     typeset address=$codex_seat_address
