@@ -162,7 +162,7 @@ function muster_claude_profile {
             ;;
         (fable)
             muster_claude_address=${slug}-fable
-            muster_claude_model='claude-fable-5[1m]'
+            muster_claude_model='claude-fable-5-1[1m]'
             muster_claude_effort=high
             ;;
         (*)
