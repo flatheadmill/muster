@@ -41,11 +41,12 @@ $ muster codex popup --slug widget --seat sol
 $ printf '%s\n' 'Implement the agreed change.' | muster messages send --slug widget-sol --from widget
 ```
 
-Opening the conventional `sol` seat creates it automatically with `xhigh`
-reasoning effort when needed:
+Opening the conventional `sol` or `astra` seat creates it automatically with
+`xhigh` reasoning effort when needed:
 
 ```console
 $ muster codex popup --slug widget --seat sol
+$ muster codex popup --slug widget --seat astra
 ```
 
 ## Collaboration

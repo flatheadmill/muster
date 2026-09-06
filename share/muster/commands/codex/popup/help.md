@@ -12,7 +12,8 @@ Set the named Codex seat.
 The seat runs in a persistent private tmux session, so closing and reopening the
 popup returns to the same Codex TUI and thread.
 
-The `sol` seat is created automatically with `xhigh` reasoning effort when it
-does not exist. Other named seats remain explicit.
+The conventional `sol` and `astra` seats are created automatically with `xhigh`
+reasoning effort when they do not exist. They use `gpt-5.6-sol` and
+`gpt-6-astra`, respectively. Other named seats remain explicit.
 ## OPTIONS
 > options

@@ -15,10 +15,19 @@ function :execute:codex:popup {
     muster_window_slug $o_seat
 
     codex_seat_config_file $o_slug $o_seat
-    if [[ $o_seat == sol && ! -e $REPLY ]]; then
+    typeset model=
+    if [[ ! -e $REPLY ]]; then
+        case $o_seat in
+        (sol) model=gpt-5.6-sol ;;
+        (astra) model=gpt-6-astra ;;
+        (*) model= ;;
+        esac
+    fi
+    if [[ -n ${model:-} ]]; then
         "${zshctl[argzero]:A}" codex create \
             --slug $o_slug \
-            --seat sol \
+            --seat $o_seat \
+            --model $model \
             --effort xhigh \
             >/dev/null
     fi

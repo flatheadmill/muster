@@ -3,14 +3,14 @@ function :help:codex:create {
 }
 
 function :args:codex:create {
-    eval "$(args -bx h,help -s s,slug n,seat e,effort -- "$@")"
+    eval "$(args -bx h,help -s s,slug n,seat m,model e,effort -- "$@")"
 }
 
 function :execute:codex:create {
     [[ -v o_slug ]] || abend 'fatal: --slug is required'
     [[ -v o_seat ]] || abend 'fatal: --seat is required'
     [[ -v o_effort ]] || abend 'fatal: --effort is required'
-    [[ $# -eq 0 ]] || abend 'fatal: usage: muster codex create --slug <slug> --seat <seat> --effort <low|medium|high|xhigh>'
+    [[ $# -eq 0 ]] || abend 'fatal: usage: muster codex create --slug <slug> --seat <seat> [--model <model>] --effort <low|medium|high|xhigh>'
 
     muster_window_slug $o_slug
     muster_window_slug $o_seat
@@ -25,7 +25,8 @@ function :execute:codex:create {
         || abend 'fatal: no window directory at %s; create the window before creating a Codex seat' "$pane_dir"
 
     typeset address=${o_slug}-${o_seat}
-    typeset model=gpt-5.6-sol
+    typeset model=${o_model:-gpt-5.6-sol}
+    [[ -n $model ]] || abend 'fatal: model must not be empty'
     muster_state_root
     typeset seats_dir=$REPLY/codex/$o_slug/seats
     typeset seat_dir=$seats_dir/$o_seat
