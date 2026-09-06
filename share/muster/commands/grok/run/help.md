@@ -11,7 +11,9 @@ the window has no Grok session, Muster reserves its session ID automatically.
 Later process launches resume the same Grok conversation.
 
 Muster marks `~/pane/<slug>` as trusted when Grok starts. Grok otherwise uses
-its existing model, reasoning, and permission configuration.
+its existing model, reasoning, and permission configuration. Muster disables
+subagents and gives Grok a short startup rule to keep work visible in the
+primary conversation where Alan can steer it.
 
 The private tmux session remains alive while the popup is detached. Grok runs
 with `MUSTER_WINDOW_SLUG=<slug>` and `MUSTER_SLUG=<slug>-grok` so it can

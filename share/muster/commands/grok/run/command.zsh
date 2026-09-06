@@ -28,7 +28,14 @@ function :execute:grok:run {
     typeset grok_bin=${commands[grok]:-}
     [[ -n $grok_bin ]] || abend 'fatal: grok is not installed'
     grok_session_dir $dir $session_id
-    typeset -a grok_args=( --cwd $dir --fullscreen --trust )
+    typeset grok_rules="You are the $address participant in a Muster collaboration window. Work visibly in the primary conversation so Alan can follow and steer the work. Do not delegate to subagents or launch agent workflows."
+    typeset -a grok_args=(
+        --cwd $dir
+        --fullscreen
+        --trust
+        --no-subagents
+        --rules $grok_rules
+    )
     if [[ -d $REPLY ]]; then
         grok_args+=( --resume $session_id )
     else
