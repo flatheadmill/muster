@@ -9,13 +9,14 @@ const process = require('node:process');
 const DEFAULT_TIMEOUT_MS = 5000;
 
 function usage() {
-    process.stdout.write(`Usage: codex-nudge --socket PATH [--thread ID] [--resume-config JSON] [--timeout MS] [--probe | --initialize-only] [PROMPT]\n` +
+    process.stdout.write(`Usage: codex-nudge --socket PATH [--thread ID] [--resume-config JSON] [--timeout MS] [--probe | --initialize-only | --read-thread] [PROMPT]\n` +
         `       codex-nudge --socket PATH --start-thread --resume-config JSON\n` +
         `       codex-nudge --socket PATH --start-server --log PATH\n\n` +
         `Submit one prompt to a running Codex app-server over its Unix socket.\n` +
         `If PROMPT is omitted, read it from standard input. --probe connects and\n` +
         `resumes the thread without starting a turn. --initialize-only checks the\n` +
-        `app-server without loading a thread. --start-thread creates a persistent\n` +
+        `app-server without loading a thread. --read-thread reports status without\n` +
+        `resuming the thread. --start-thread creates a persistent\n` +
         `thread and prints its ID. --start-server launches a detached app-server\n` +
         `and prints its PID.\n`);
 }
@@ -27,6 +28,7 @@ function parseArgs(argv) {
         timeout: DEFAULT_TIMEOUT_MS,
         probe: false,
         initializeOnly: false,
+        readThread: false,
         startThread: false,
         startServer: false,
         log: null,
@@ -54,6 +56,9 @@ function parseArgs(argv) {
                 break;
             case '--initialize-only':
                 options.initializeOnly = true;
+                break;
+            case '--read-thread':
+                options.readThread = true;
                 break;
             case '--start-thread':
                 options.startThread = true;
@@ -88,16 +93,20 @@ function parseArgs(argv) {
     if (!options.initializeOnly && !options.startThread && !options.startServer && !options.thread) {
         throw new Error('--thread is required');
     }
-    if (options.initializeOnly && options.probe) {
-        throw new Error('--initialize-only and --probe cannot be combined');
+    if ([options.initializeOnly, options.readThread, options.probe].filter(Boolean).length > 1) {
+        throw new Error('--initialize-only, --read-thread, and --probe cannot be combined');
+    }
+    if (options.readThread && options.prompt !== null) {
+        throw new Error('--read-thread cannot be combined with a prompt');
     }
     if (options.startThread &&
-        (options.initializeOnly || options.probe || options.thread || options.prompt !== null)) {
+        (options.initializeOnly || options.readThread || options.probe || options.thread ||
+            options.prompt !== null)) {
         throw new Error('--start-thread cannot be combined with other thread operations');
     }
     if (options.startServer &&
-        (options.initializeOnly || options.startThread || options.probe || options.thread ||
-            options.prompt !== null)) {
+        (options.initializeOnly || options.readThread || options.startThread || options.probe ||
+            options.thread || options.prompt !== null)) {
         throw new Error('--start-server cannot be combined with thread operations');
     }
     if (options.startServer && !options.log) throw new Error('--log is required with --start-server');
@@ -295,10 +304,12 @@ async function main() {
         return;
     }
 
-    if (!options.probe && !options.initializeOnly && !options.startThread && options.prompt === null) {
+    if (!options.probe && !options.initializeOnly && !options.readThread && !options.startThread &&
+        options.prompt === null) {
         options.prompt = await readStdin();
     }
-    if (!options.probe && !options.initializeOnly && !options.startThread && !options.prompt.trim()) {
+    if (!options.probe && !options.initializeOnly && !options.readThread && !options.startThread &&
+        !options.prompt.trim()) {
         throw new Error('prompt is empty');
     }
 
@@ -318,6 +329,18 @@ async function main() {
         if (options.initializeOnly) {
             process.stdout.write(`${JSON.stringify({
                 userAgent: initialized.userAgent,
+            })}\n`);
+            return;
+        }
+
+        if (options.readThread) {
+            const read = await rpc.request('thread/read', {
+                threadId: options.thread,
+                includeTurns: false,
+            });
+            process.stdout.write(`${JSON.stringify({
+                threadId: read.thread.id,
+                status: read.thread.status,
             })}\n`);
             return;
         }

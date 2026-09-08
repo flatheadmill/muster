@@ -2,6 +2,12 @@
 
 `muster` coordinates participants in durable, named workspaces.
 
+A window can be renamed after its participant clients and Puzzle have stopped. The rename preserves conversation IDs while moving the room, harness state, message history, and cwd-indexed session data together.
+
+```console
+$ muster rename --slug widget --to sprocket
+```
+
 The first utility is a file-backed message system. Each participant has an address, an inbox, an outbox, and a read cursor. Participants can send and read batches directly, wait for one message, run a one-shot listener, or keep a streaming monitor open for the life of a session.
 
 ```console
