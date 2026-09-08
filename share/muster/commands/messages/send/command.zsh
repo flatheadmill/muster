@@ -14,6 +14,9 @@ function :execute:messages:send {
 
     [[ -v o_slug ]] || abend 'fatal: --slug is required'
     muster_address $o_slug
+    typeset window_slug=${o_slug%%-*}
+    [[ -d $HOME/pane/$window_slug ]] ||
+        abend 'fatal: no window exists for address: %s' "$o_slug"
 
     typeset from=
     if [[ -v o_from ]]; then
