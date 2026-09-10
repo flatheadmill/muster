@@ -383,6 +383,8 @@ async function main() {
                 threadId: resumed.thread.id,
                 status: resumed.thread.status,
                 model: resumed.model,
+                reasoningEffort: resumed.reasoningEffort,
+                serviceTier: resumed.serviceTier,
                 cwd: resumed.cwd,
                 approvalPolicy: resumed.approvalPolicy,
                 approvalsReviewer: resumed.approvalsReviewer,
@@ -395,6 +397,7 @@ async function main() {
         const turnConfig = {};
         for (const key of [
             'model',
+            'serviceTier',
             'cwd',
             'runtimeWorkspaceRoots',
             'approvalPolicy',
@@ -406,6 +409,8 @@ async function main() {
                 turnConfig[key] = options.resumeConfig[key];
             }
         }
+        const effort = options.resumeConfig.config?.model_reasoning_effort;
+        if (effort) turnConfig.effort = effort;
         const started = await rpc.request('turn/start', {
             ...turnConfig,
             threadId: options.thread,

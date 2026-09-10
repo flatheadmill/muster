@@ -7,10 +7,13 @@ function :args:codex {
 }
 
 function codex_daemon_settings {
+    muster_participant_settings codex
     typeset slug=$1
     typeset address=${2:-$slug}
-    typeset model=${3:-gpt-5.6-sol}
-    typeset effort=${4:-}
+    typeset model=${3:-$muster_participant_model}
+    typeset effort=${4:-$muster_participant_effort}
+    typeset tier=${MUSTER_CODEX_SERVICE_TIER:-}
+    [[ -z $effort ]] || muster_effort $effort
     typeset code_root=$HOME/code
     typeset pane_root=$HOME/pane
     typeset mcp_url="http://localhost:6502/mcp/$slug"
@@ -29,6 +32,7 @@ function codex_daemon_settings {
     codex_daemon_resume_config=$(jq -cn \
         --arg model "$codex_daemon_model" \
         --arg effort "$codex_daemon_effort" \
+        --arg tier "$tier" \
         --arg cwd "$codex_daemon_cwd" \
         --arg code_root "$code_root" \
         --arg pane_root "$pane_root" \
@@ -66,7 +70,9 @@ function codex_daemon_settings {
                     }
                 }
             }
-        } + if $effort == "" then {} else {effort: $effort} end)
+        }
+        | if $effort == "" then . else .config.model_reasoning_effort = $effort end
+        | if $tier == "" then . else .serviceTier = $tier end)
     ')
     codex_mcp_cli_args=(
         --disable apps
@@ -93,6 +99,7 @@ function codex_daemon_settings {
     [[ -z $codex_daemon_effort ]] || codex_daemon_cli_args+=(
         -c "model_reasoning_effort=\"$codex_daemon_effort\""
     )
+    [[ -z $tier ]] || codex_daemon_cli_args+=( -c "service_tier=\"$tier\"" )
 }
 
 function codex_pane_configure {
@@ -181,10 +188,7 @@ function codex_seat_settings {
     [[ $codex_seat_address == ${slug}-${seat} ]] \
         || abend 'fatal: Codex seat address does not match %s-%s' "$slug" "$seat"
     muster_address $codex_seat_address
-    case $codex_seat_effort in
-        (low|medium|high|xhigh) ;;
-        (*) abend 'fatal: invalid Codex effort for %s: %s' "$codex_seat_address" "$codex_seat_effort" ;;
-    esac
+    muster_effort $codex_seat_effort
 }
 
 function codex_session_id_read {
@@ -201,7 +205,7 @@ function codex_session_start {
     typeset slug=$1
     typeset sid_file=$2
     typeset address=${3:-$slug}
-    typeset model=${4:-gpt-5.6-sol}
+    typeset model=${4:-}
     typeset effort=${5:-}
     typeset sid_dir=${sid_file:h}
     typeset lock=$sid_dir/sid.lock

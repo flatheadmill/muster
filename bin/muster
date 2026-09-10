@@ -42,6 +42,44 @@ function muster_state_root {
     REPLY=${MUSTER_STATE_HOME:-$base/muster}
 }
 
+function muster_effort {
+    case $1 in
+        (low|medium|high|xhigh|max) ;;
+        (*) abend 'fatal: effort must be one of low, medium, high, xhigh, or max' ;;
+    esac
+}
+
+function muster_participant_settings {
+    typeset base=${XDG_CONFIG_HOME:-$HOME/.config}
+    typeset config=$base/muster/participants.zsh
+    [[ ! -f $config ]] || source $config
+
+    case $1 in
+        (codex)
+            muster_participant_model=${MUSTER_CODEX_MODEL:-gpt-5.6-sol}
+            muster_participant_effort=${MUSTER_CODEX_EFFORT:-}
+            ;;
+        (sol)
+            muster_participant_model=${MUSTER_SOL_MODEL:-gpt-5.6-sol}
+            muster_participant_effort=${MUSTER_SOL_EFFORT:-xhigh}
+            ;;
+        (astra)
+            muster_participant_model=${MUSTER_ASTRA_MODEL:-gpt-6-astra}
+            muster_participant_effort=${MUSTER_ASTRA_EFFORT:-xhigh}
+            ;;
+        (claude)
+            muster_participant_model=${MUSTER_CLAUDE_MODEL:-opus[1m]}
+            muster_participant_effort=${MUSTER_CLAUDE_EFFORT:-medium}
+            ;;
+        (fable)
+            muster_participant_model=${MUSTER_FABLE_MODEL:-claude-fable-5-1[1m]}
+            muster_participant_effort=${MUSTER_FABLE_EFFORT:-high}
+            ;;
+        (*) abend 'fatal: unknown participant profile: %s' "$1" ;;
+    esac
+    [[ -z $muster_participant_effort ]] || muster_effort $muster_participant_effort
+}
+
 typeset -ga muster_private_tmux_environment=(
     -u TMUX
     -u AI_AGENT
@@ -155,20 +193,15 @@ function muster_write_cursor {
 function muster_claude_profile {
     typeset profile=$1 slug=$2
     case $profile in
-        (claude)
-            muster_claude_address=${slug}-claude
-            muster_claude_model='opus[1m]'
-            muster_claude_effort=medium
-            ;;
-        (fable)
-            muster_claude_address=${slug}-fable
-            muster_claude_model='claude-fable-5-1[1m]'
-            muster_claude_effort=high
-            ;;
+        (claude|fable) ;;
         (*)
             abend 'fatal: unknown Claude profile: %s' "$profile"
             ;;
     esac
+    muster_participant_settings $profile
+    muster_claude_address=${slug}-${profile}
+    muster_claude_model=$muster_participant_model
+    muster_claude_effort=$muster_participant_effort
 }
 
 function muster_claude_session_id {
