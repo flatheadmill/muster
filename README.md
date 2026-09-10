@@ -79,6 +79,42 @@ $ muster fable run --slug widget
 
 Their Muster addresses are `widget-claude` and `widget-fable`.
 
+## Participant defaults
+
+Set personal defaults in `~/.config/muster/participants.zsh` (or under
+`$XDG_CONFIG_HOME`). Muster sources this file when it resolves a participant.
+These variables can also be exported from the launching shell. To allow shell
+overrides, use default assignments in the file:
+
+```zsh
+typeset -gx MUSTER_CODEX_MODEL=${MUSTER_CODEX_MODEL:-gpt-6-astra}
+typeset -gx MUSTER_CODEX_EFFORT=${MUSTER_CODEX_EFFORT:-max}
+typeset -gx MUSTER_CODEX_SERVICE_TIER=${MUSTER_CODEX_SERVICE_TIER:-fast}
+typeset -gx MUSTER_ASTRA_EFFORT=${MUSTER_ASTRA_EFFORT:-max}
+typeset -gx MUSTER_FABLE_EFFORT=${MUSTER_FABLE_EFFORT:-xhigh}
+```
+
+The defaults without configuration remain:
+
+| Participant | Model variable and default | Effort variable and default |
+| --- | --- | --- |
+| Main Codex | `MUSTER_CODEX_MODEL`: `gpt-5.6-sol` | `MUSTER_CODEX_EFFORT`: inherit Codex configuration |
+| Sol popup | `MUSTER_SOL_MODEL`: `gpt-5.6-sol` | `MUSTER_SOL_EFFORT`: `xhigh` |
+| Astra popup | `MUSTER_ASTRA_MODEL`: `gpt-6-astra` | `MUSTER_ASTRA_EFFORT`: `xhigh` |
+| Claude popup | `MUSTER_CLAUDE_MODEL`: `opus[1m]` | `MUSTER_CLAUDE_EFFORT`: `medium` |
+| Fable popup | `MUSTER_FABLE_MODEL`: `claude-fable-5-1[1m]` | `MUSTER_FABLE_EFFORT`: `high` |
+
+Effort accepts `low`, `medium`, `high`, `xhigh`, or `max`, subject to the model's
+support. `MUSTER_CODEX_SERVICE_TIER` applies to all Codex participants; when
+unset, Codex's own tier configuration applies. Set it to `fast` for Fast mode.
+This does not change the user's global Codex configuration.
+
+Named Codex seats retain the model and effort saved when created. New defaults
+apply to future seats; explicit `codex create --model` and `--effort` take
+precedence. Main Codex settings apply on launch and message-triggered turns.
+Claude/Fable defaults apply when their process starts, so detach and reopen
+returns to the current process without changing its model or effort.
+
 ## Grok Build
 
 Muster records one Grok Build session ID for each window. The first run creates

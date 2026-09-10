@@ -10,22 +10,20 @@ function :execute:codex:create {
     [[ -v o_slug ]] || abend 'fatal: --slug is required'
     [[ -v o_seat ]] || abend 'fatal: --seat is required'
     [[ -v o_effort ]] || abend 'fatal: --effort is required'
-    [[ $# -eq 0 ]] || abend 'fatal: usage: muster codex create --slug <slug> --seat <seat> [--model <model>] --effort <low|medium|high|xhigh>'
+    [[ $# -eq 0 ]] || abend 'fatal: usage: muster codex create --slug <slug> --seat <seat> [--model <model>] --effort <low|medium|high|xhigh|max>'
 
     muster_window_slug $o_slug
     muster_window_slug $o_seat
     [[ $o_seat != codex ]] || abend 'fatal: codex is the reserved default seat'
-    case $o_effort in
-        (low|medium|high|xhigh) ;;
-        (*) abend 'fatal: effort must be one of low, medium, high, or xhigh' ;;
-    esac
+    muster_effort $o_effort
 
     typeset pane_dir=~/pane/$o_slug
     [[ -d $pane_dir ]] \
         || abend 'fatal: no window directory at %s; create the window before creating a Codex seat' "$pane_dir"
 
     typeset address=${o_slug}-${o_seat}
-    typeset model=${o_model:-gpt-5.6-sol}
+    muster_participant_settings codex
+    typeset model=${o_model:-$muster_participant_model}
     [[ -n $model ]] || abend 'fatal: model must not be empty'
     muster_state_root
     typeset seats_dir=$REPLY/codex/$o_slug/seats

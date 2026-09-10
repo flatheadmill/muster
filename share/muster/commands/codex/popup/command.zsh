@@ -18,8 +18,10 @@ function :execute:codex:popup {
     typeset model=
     if [[ ! -e $REPLY ]]; then
         case $o_seat in
-        (sol) model=gpt-5.6-sol ;;
-        (astra) model=gpt-6-astra ;;
+        (sol|astra)
+            muster_participant_settings $o_seat
+            model=$muster_participant_model
+            ;;
         (*) model= ;;
         esac
     fi
@@ -28,7 +30,7 @@ function :execute:codex:popup {
             --slug $o_slug \
             --seat $o_seat \
             --model $model \
-            --effort xhigh \
+            --effort $muster_participant_effort \
             >/dev/null
     fi
 
