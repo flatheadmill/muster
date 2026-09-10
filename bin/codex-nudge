@@ -372,11 +372,36 @@ async function main() {
             return;
         }
 
-        const resumed = await rpc.request('thread/resume', {
+        let resumed = await rpc.request('thread/resume', {
             ...options.resumeConfig,
             threadId: options.thread,
             excludeTurns: true,
         });
+
+        // Resume rejoins loaded threads without applying configuration overrides.
+        // Update approval routing explicitly before the TUI attaches or a turn starts.
+        const approvalSettings = {};
+        for (const key of ['approvalPolicy', 'approvalsReviewer']) {
+            if (Object.hasOwn(options.resumeConfig, key) &&
+                options.resumeConfig[key] !== resumed[key]) {
+                approvalSettings[key] = options.resumeConfig[key];
+            }
+        }
+        if (Object.keys(approvalSettings).length) {
+            await rpc.request('thread/settings/update', {
+                threadId: options.thread,
+                ...approvalSettings,
+            });
+            resumed = await rpc.request('thread/resume', {
+                threadId: options.thread,
+                excludeTurns: true,
+            });
+            for (const [key, value] of Object.entries(approvalSettings)) {
+                if (resumed[key] !== value) {
+                    throw new Error(`Codex did not apply ${key}: expected ${value}, got ${resumed[key]}`);
+                }
+            }
+        }
 
         if (options.probe) {
             process.stdout.write(`${JSON.stringify({

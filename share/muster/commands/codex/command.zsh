@@ -75,17 +75,11 @@ function codex_daemon_settings {
         -c 'mcp_servers.o.tools.tools.approval_mode="approve"'
         -c 'mcp_servers.o.tools.approve.approval_mode="approve"'
     )
+    # Remote resume restores permissions configured by the server-side probe.
+    # Codex rejects permission overrides supplied by the attaching TUI.
     codex_daemon_cli_args=(
         --cd "$codex_daemon_cwd"
-        --sandbox workspace-write
-        --ask-for-approval on-request
-        --add-dir "$code_root"
-        --add-dir "$pane_root"
-        --add-dir "$muster_root"
         --model "$codex_daemon_model"
-        -c 'approvals_reviewer="auto_review"'
-        -c 'sandbox_workspace_write.network_access=true'
-        -c "sandbox_workspace_write.writable_roots=[\"$code_root\", \"$pane_root\", \"$muster_root\"]"
         -c "shell_environment_policy.set.MUSTER_WINDOW_SLUG=\"$slug\""
         -c "shell_environment_policy.set.MUSTER_SLUG=\"$codex_daemon_address\""
         "${(@)codex_mcp_cli_args}"
