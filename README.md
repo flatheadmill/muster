@@ -55,6 +55,19 @@ $ muster codex popup --slug widget --seat sol
 $ muster codex popup --slug widget --seat astra
 ```
 
+### Changing Reasoning Effort
+
+Codex 0.154.0 includes an experimental option for changing reasoning effort within a conversation while preserving the cached prompt prefix. To enable it, add this key to the existing `[features]` section in `~/.codex/config.toml` (or create the section if it is absent):
+
+```toml
+[features]
+reasoning_effort_override = true
+```
+
+The option requires an OpenAI model using Responses Lite, including `gpt-6-astra` and `gpt-5.6-sol`. Codex records effort changes in conversation history while keeping request-level effort stable. This avoids invalidating the cached prefix solely because effort changed; it does not guarantee a cache hit. Switching models still uses a different model-specific cache.
+
+After changing the setting, close the Codex TUIs, restart Muster's shared Codex app-server when its turns have finished, and reopen the TUIs. Then select the desired effort in the TUI. Verify that `codex features list` reports `reasoning_effort_override` as `true`; a running app-server must restart to pick up the configuration change.
+
 ## Collaboration
 
 A persistent collaboration popup opens the standing Codex thread in a private
