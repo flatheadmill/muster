@@ -328,7 +328,8 @@ function codex_app_server_ensure {
     fi
     rm -f $pid_file
     typeset server_pid=$(
-        "$(codex_nudge_bin)" --socket "$socket" --start-server --log "$log"
+        "$(codex_nudge_bin)" --socket "$socket" --start-server --log "$log" \
+            --resume-config "$codex_daemon_resume_config"
     )
     print -r -- $server_pid > $pid_file
 
