@@ -45,7 +45,7 @@ function :execute:messages:send:remote {
         [[ -z $staged ]] || rm -f $staged
     }
 
-    if muster_codex_address_resolve $slug; then
+    if [[ $slug != putter ]] && muster_codex_address_resolve $slug; then
         typeset window_slug=$muster_codex_address_window
         typeset seat=$muster_codex_address_seat
         typeset nudge="You have messages: \`muster messages read --slug $slug\`."
