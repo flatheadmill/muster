@@ -126,15 +126,22 @@ async function startServer(options) {
     delete env.MUSTER_WINDOW_SLUG;
     delete env.MUSTER_SLUG;
 
+    // Remote TUIs cannot supply permission overrides. Keep the shared
+    // workspace policy on the server so it survives client reconnects.
+    // MCP routes and participant environment remain specific to each thread.
+    const args = ['app-server', '--listen', `unix://${options.socket}`, '--disable', 'apps'];
+    const workspace = options.resumeConfig.config?.sandbox_workspace_write;
+    if (workspace) {
+        args.push(
+            '-c', 'sandbox_mode="workspace-write"',
+            '-c', `sandbox_workspace_write.network_access=${JSON.stringify(workspace.network_access)}`,
+            '-c', `sandbox_workspace_write.writable_roots=${JSON.stringify(workspace.writable_roots)}`,
+        );
+    }
+
     let child;
     try {
-        child = spawn('codex', [
-            'app-server',
-            '--listen',
-            `unix://${options.socket}`,
-            '--disable',
-            'apps',
-        ], {
+        child = spawn('codex', args, {
             detached: true,
             env,
             stdio: ['ignore', log, log],
@@ -424,7 +431,6 @@ async function main() {
             'runtimeWorkspaceRoots',
             'approvalPolicy',
             'approvalsReviewer',
-            'sandbox',
             'personality',
         ]) {
             if (Object.hasOwn(options.resumeConfig, key)) {
