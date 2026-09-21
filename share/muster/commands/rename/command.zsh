@@ -155,7 +155,6 @@ function muster_rename_wicket_config {
 function muster_rename_require_idle_threads {
     typeset socket=$muster_rename_state/codex/app-server.sock thread response thread_status
     muster_rename_exists $socket || return 0
-    muster_rename_codex_server=1
     for thread in $muster_rename_thread_ids; do
         response=$("${zshctl[argzero]:A:h}/codex-nudge" \
             --socket $socket --thread $thread --read-thread) ||
@@ -165,41 +164,6 @@ function muster_rename_require_idle_threads {
             print -u2 -- "fatal: Codex thread is not idle: $thread ($thread_status)"
             return 1
         }
-    done
-}
-
-function muster_rename_reconfigure_threads {
-    typeset slug=$1 expected_cwd=${2:-}
-    typeset seat sid_file expected_sid response thread_status cwd
-    typeset -a args
-
-    for seat in '' $muster_rename_seats; do
-        if [[ -n $seat ]]; then
-            sid_file=$muster_rename_state/codex/$slug/seats/$seat/sid.json
-            args=( --slug $slug --seat $seat --probe )
-            [[ -f $sid_file && ! -L $sid_file ]] || return 1
-        else
-            sid_file=$muster_rename_state/codex/$slug/sid.json
-            args=( --slug $slug --probe )
-            [[ -f $sid_file && ! -L $sid_file ]] || continue
-        fi
-        expected_sid=$(jq -er 'strings | select(length > 0)' $sid_file 2>/dev/null) ||
-            return 1
-        response=$("${zshctl[argzero]:A}" codex nudge "${(@)args}") || return 1
-        [[ $(jq -er '.threadId' <<< $response 2>/dev/null) == $expected_sid ]] || return 1
-        thread_status=$(jq -er '.status.type' <<< $response 2>/dev/null) || return 1
-        [[ $thread_status == idle ]] || {
-            print -u2 -- "fatal: Codex thread is not idle: $expected_sid ($thread_status)"
-            return 1
-        }
-        if [[ -n $expected_cwd ]]; then
-            cwd=$(jq -er '.cwd' <<< $response 2>/dev/null) || return 1
-            [[ $cwd == $expected_cwd ]] || {
-                print -u2 -- \
-                    "fatal: Codex thread retained the wrong directory: $expected_sid ($cwd)"
-                return 1
-            }
-        fi
     done
 }
 
@@ -324,7 +288,6 @@ function :execute:rename {
     typeset -a muster_rename_puzzle_panes=() muster_rename_windows=()
     typeset -a muster_rename_changed_panes=() muster_rename_changed_windows=()
     typeset -a muster_rename_thread_ids=() muster_rename_seats=()
-    integer muster_rename_codex_server=0
     integer muster_rename_rollback_failed=0
     integer muster_rename_lock_acquired=0
     typeset muster_rename_claude_config= muster_rename_codex_config=
@@ -587,15 +550,8 @@ function :execute:rename {
             abend 'fatal: cannot create rename transaction'
         }
         if muster_rename_apply; then
-            if (( ! muster_rename_codex_server )) ||
-                muster_rename_reconfigure_threads $o_to $muster_rename_new_pane
-            then
-                result=0
-                print -r -- "renamed $o_slug to $o_to"
-            else
-                print -u2 -- \
-                    "fatal: renamed $o_slug to $o_to, but could not reconfigure every Codex thread"
-            fi
+            result=0
+            print -r -- "renamed $o_slug to $o_to"
         else
             if (( muster_rename_rollback_failed )); then
                 print -u2 -- \
