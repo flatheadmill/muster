@@ -43,7 +43,7 @@ function codex_daemon_settings {
             approvalPolicy: "on-request",
             approvalsReviewer: "auto_review",
             sandbox: "workspace-write",
-            config: {
+            config: ({
                 sandbox_workspace_write: {
                     network_access: true,
                     writable_roots: [$code_root, $pane_root, $muster_root]
@@ -65,8 +65,8 @@ function codex_daemon_settings {
                         }
                     }
                 }
-            }
-        } + if $effort == "" then {} else {effort: $effort} end)
+            } + if $effort == "" then {} else {model_reasoning_effort: $effort} end)
+        })
     ')
     codex_mcp_cli_args=(
         --disable apps

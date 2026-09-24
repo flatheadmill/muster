@@ -25,6 +25,8 @@ Run `muster messages --help` for storage and remote-host configuration.
 
 Muster keeps one standing Codex thread for each window. The interactive TUI and message-triggered turns use the same shared app-server configuration, so a conversation continues whether or not its terminal is open.
 
+The main window participant uses `gpt-5.6-sol` with `medium` reasoning effort. Named seats keep the model and effort recorded when they are created.
+
 Opening a new window creates its room at `~/pane/<slug>`. Room slugs use lowercase letters, digits, and underscores; hyphens separate a room from a named participant.
 
 ```console

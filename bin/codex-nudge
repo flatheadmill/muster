@@ -379,26 +379,32 @@ async function main() {
         });
 
         // Resume rejoins loaded threads without applying configuration overrides.
-        // Update approval routing explicitly before the TUI attaches or a turn starts.
-        const approvalSettings = {};
-        for (const key of ['approvalPolicy', 'approvalsReviewer']) {
+        // Restore the standing thread's settings explicitly before a TUI attaches
+        // or a message starts a turn.
+        const threadSettings = {};
+        for (const key of ['approvalPolicy', 'approvalsReviewer', 'model']) {
             if (Object.hasOwn(options.resumeConfig, key) &&
                 options.resumeConfig[key] !== resumed[key]) {
-                approvalSettings[key] = options.resumeConfig[key];
+                threadSettings[key] = options.resumeConfig[key];
             }
         }
-        if (Object.keys(approvalSettings).length) {
+        const effort = options.resumeConfig?.config?.model_reasoning_effort;
+        if (typeof effort === 'string' && effort !== resumed.reasoningEffort) {
+            threadSettings.effort = effort;
+        }
+        if (Object.keys(threadSettings).length) {
             await rpc.request('thread/settings/update', {
                 threadId: options.thread,
-                ...approvalSettings,
+                ...threadSettings,
             });
             resumed = await rpc.request('thread/resume', {
                 threadId: options.thread,
                 excludeTurns: true,
             });
-            for (const [key, value] of Object.entries(approvalSettings)) {
-                if (resumed[key] !== value) {
-                    throw new Error(`Codex did not apply ${key}: expected ${value}, got ${resumed[key]}`);
+            for (const [key, value] of Object.entries(threadSettings)) {
+                const responseKey = key === 'effort' ? 'reasoningEffort' : key;
+                if (resumed[responseKey] !== value) {
+                    throw new Error(`Codex did not apply ${key}: expected ${value}, got ${resumed[responseKey]}`);
                 }
             }
         }
@@ -411,6 +417,7 @@ async function main() {
                 cwd: resumed.cwd,
                 approvalPolicy: resumed.approvalPolicy,
                 approvalsReviewer: resumed.approvalsReviewer,
+                reasoningEffort: resumed.reasoningEffort,
                 sandbox: resumed.sandbox,
                 runtimeWorkspaceRoots: resumed.runtimeWorkspaceRoots,
             })}\n`);
@@ -430,6 +437,9 @@ async function main() {
             if (Object.hasOwn(options.resumeConfig, key)) {
                 turnConfig[key] = options.resumeConfig[key];
             }
+        }
+        if (typeof effort === 'string') {
+            turnConfig.effort = effort;
         }
         const started = await rpc.request('turn/start', {
             ...turnConfig,
