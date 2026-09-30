@@ -42,12 +42,8 @@ function codex_daemon_settings {
             runtimeWorkspaceRoots: [$code_root, $pane_root, $muster_root],
             approvalPolicy: "on-request",
             approvalsReviewer: "auto_review",
-            sandbox: "workspace-write",
+            permissions: "muster",
             config: ({
-                sandbox_workspace_write: {
-                    network_access: true,
-                    writable_roots: [$code_root, $pane_root, $muster_root]
-                },
                 shell_environment_policy: {
                     set: {
                         MUSTER_WINDOW_SLUG: $window_slug,

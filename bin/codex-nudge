@@ -125,6 +125,9 @@ async function startServer(options) {
     const env = { ...process.env };
     delete env.MUSTER_WINDOW_SLUG;
     delete env.MUSTER_SLUG;
+    const dlsSocket = env.DLS_SOCKET ||
+        `${env.XDG_RUNTIME_DIR || `${env.HOME}/.local/state/dls`}/dls.socket`;
+    const permissions = `{ muster = { extends = ":workspace", network = { enabled = true, unix_sockets = { ${JSON.stringify(dlsSocket)} = "allow" } } } }`;
 
     let child;
     try {
@@ -134,6 +137,12 @@ async function startServer(options) {
             `unix://${options.socket}`,
             '--disable',
             'apps',
+            '--enable',
+            'network_proxy',
+            '-c',
+            `permissions=${permissions}`,
+            '-c',
+            'default_permissions="muster"',
         ], {
             detached: true,
             env,
@@ -388,6 +397,10 @@ async function main() {
                 threadSettings[key] = options.resumeConfig[key];
             }
         }
+        if (Object.hasOwn(options.resumeConfig, 'permissions') &&
+            options.resumeConfig.permissions !== resumed.activePermissionProfile?.id) {
+            threadSettings.permissions = options.resumeConfig.permissions;
+        }
         const effort = options.resumeConfig?.config?.model_reasoning_effort;
         if (typeof effort === 'string' && effort !== resumed.reasoningEffort) {
             threadSettings.effort = effort;
@@ -402,9 +415,13 @@ async function main() {
                 excludeTurns: true,
             });
             for (const [key, value] of Object.entries(threadSettings)) {
-                const responseKey = key === 'effort' ? 'reasoningEffort' : key;
-                if (resumed[responseKey] !== value) {
-                    throw new Error(`Codex did not apply ${key}: expected ${value}, got ${resumed[responseKey]}`);
+                const actual = key === 'effort'
+                    ? resumed.reasoningEffort
+                    : key === 'permissions'
+                        ? resumed.activePermissionProfile?.id
+                        : resumed[key];
+                if (actual !== value) {
+                    throw new Error(`Codex did not apply ${key}: expected ${value}, got ${actual}`);
                 }
             }
         }
@@ -418,6 +435,7 @@ async function main() {
                 approvalPolicy: resumed.approvalPolicy,
                 approvalsReviewer: resumed.approvalsReviewer,
                 reasoningEffort: resumed.reasoningEffort,
+                activePermissionProfile: resumed.activePermissionProfile,
                 sandbox: resumed.sandbox,
                 runtimeWorkspaceRoots: resumed.runtimeWorkspaceRoots,
             })}\n`);
@@ -431,7 +449,7 @@ async function main() {
             'runtimeWorkspaceRoots',
             'approvalPolicy',
             'approvalsReviewer',
-            'sandbox',
+            'permissions',
             'personality',
         ]) {
             if (Object.hasOwn(options.resumeConfig, key)) {
