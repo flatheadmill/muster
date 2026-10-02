@@ -32,6 +32,7 @@ function :execute:grok:run {
     typeset -a grok_args=(
         --cwd $dir
         --fullscreen
+        --model grok-4.7
         --trust
         --no-subagents
         --rules $grok_rules
