@@ -18,7 +18,7 @@ function :execute:codex:popup {
     typeset model=
     if [[ ! -e $REPLY ]]; then
         case $o_seat in
-        (sol) model=gpt-5.6-sol ;;
+        (sol) model=gpt-6.1-sol ;;
         (astra) model=gpt-6-astra ;;
         (*) model= ;;
         esac
