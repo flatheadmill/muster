@@ -21,6 +21,22 @@ Please review the change.
 
 Run `muster messages --help` for storage and remote-host configuration.
 
+## Stable SSH\_AUTH\_SOCK
+
+On macOS, Muster gives long-running Codex processes the stable path
+`~/.ssh/agent/local`. A refresher keeps its target current so those processes
+do not retain a stale generated `SSH_AUTH_SOCK`. Install it with:
+
+```console
+$ muster ssh socket install
+```
+
+The per-user LaunchAgent refreshes the link at login and every 60 seconds.
+Running `muster ssh socket refresh` performs the same refresh immediately.
+Muster's generated Codex permission profile admits the stable socket path, so
+sandboxed commands follow its current target. Other platforms continue to use
+their inherited `SSH_AUTH_SOCK`.
+
 ## Codex
 
 Muster keeps one standing Codex thread for each window. The interactive TUI and message-triggered turns use the same shared app-server configuration, so a conversation continues whether or not its terminal is open.

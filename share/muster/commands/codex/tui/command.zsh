@@ -51,6 +51,8 @@ function :execute:codex:tui {
     fi
 
     codex_daemon_settings $o_slug $address $model $effort
+    muster_ssh_socket
+    [[ -z $REPLY ]] || export SSH_AUTH_SOCK=$REPLY
     typeset -a nudge_args=( --slug $o_slug --probe )
     [[ -z $seat ]] || nudge_args+=( --seat $seat )
     "${zshctl[argzero]:A}" codex nudge "${(@)nudge_args}" >/dev/null \

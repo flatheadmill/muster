@@ -13,6 +13,8 @@ function codex_daemon_settings {
     typeset effort=${4:-}
     typeset code_root=$HOME/code
     typeset pane_root=$HOME/pane
+    typeset ssh_socket=$HOME/.ssh/agent/local
+    typeset dls_socket=${DLS_SOCKET:-${XDG_RUNTIME_DIR:-$HOME/.local/state/dls}/dls.socket}
     typeset mcp_url="http://localhost:6502/mcp/$slug"
 
     muster_state_root
@@ -33,6 +35,8 @@ function codex_daemon_settings {
         --arg code_root "$code_root" \
         --arg pane_root "$pane_root" \
         --arg muster_root "$muster_root" \
+        --arg ssh_socket "$ssh_socket" \
+        --arg dls_socket "$dls_socket" \
         --arg window_slug "$slug" \
         --arg agent_slug "$codex_daemon_address" \
         --arg mcp_url "$mcp_url" '
@@ -44,6 +48,24 @@ function codex_daemon_settings {
             approvalsReviewer: "auto_review",
             permissions: "muster",
             config: ({
+                default_permissions: "muster",
+                permissions: {
+                    muster: {
+                        extends: ":workspace",
+                        workspace_roots: {
+                            ($code_root): true,
+                            ($pane_root): true,
+                            ($muster_root): true
+                        },
+                        network: {
+                            enabled: true,
+                            unix_sockets: {
+                                ($dls_socket): "allow",
+                                ($ssh_socket): "allow"
+                            }
+                        }
+                    }
+                },
                 shell_environment_policy: {
                     set: {
                         MUSTER_WINDOW_SLUG: $window_slug,
@@ -90,7 +112,20 @@ function codex_pane_configure {
     typeset codex_dir=~/pane/$slug/.codex
     typeset config=$codex_dir/config.toml
     typeset mcp_url="http://localhost:6502/mcp/$slug"
+    typeset code_root=$HOME/code
+    typeset pane_root=$HOME/pane
+    typeset ssh_socket=$HOME/.ssh/agent/local
+    typeset dls_socket=${DLS_SOCKET:-${XDG_RUNTIME_DIR:-$HOME/.local/state/dls}/dls.socket}
+    muster_state_root
+    typeset muster_root=$REPLY
     typeset stage config_tmp staged_tmp validation
+    typeset code_root_toml pane_root_toml muster_root_toml ssh_socket_toml dls_socket_toml
+
+    code_root_toml=$(jq -Rn --arg value "$code_root" '$value') || return
+    pane_root_toml=$(jq -Rn --arg value "$pane_root" '$value') || return
+    muster_root_toml=$(jq -Rn --arg value "$muster_root" '$value') || return
+    ssh_socket_toml=$(jq -Rn --arg value "$ssh_socket" '$value') || return
+    dls_socket_toml=$(jq -Rn --arg value "$dls_socket" '$value') || return
 
     mkdir -p $codex_dir
     stage=$(mktemp -d $codex_dir/.configure.XXXXXX)
@@ -102,6 +137,12 @@ function codex_pane_configure {
 
         staged_tmp=$(mktemp $stage/.config.toml.XXXXXX)
         awk '
+            BEGIN { print "default_permissions = \"muster\""; print "" }
+            !table && /^[[:space:]]*default_permissions[[:space:]]*=/ { next }
+            /^[[:space:]]*\[/ { table = 1 }
+            /^\[permissions\.muster([.][^]]+)?\]$/ { skip = 1; next }
+            /^\[/ { skip = 0 }
+            skip { next }
             { print }
             /^\[mcp_servers\.o\]$/ {
                 print "default_tools_approval_mode = \"prompt\""
@@ -113,7 +154,31 @@ function codex_pane_configure {
         mv $staged_tmp $stage/config.toml
         staged_tmp=
 
-        validation=$(CODEX_HOME=$stage codex --strict-config --version 2>&1) \
+        heredoc -f \
+            "$code_root_toml" \
+            "$pane_root_toml" \
+            "$muster_root_toml" \
+            "$dls_socket_toml" \
+            "$ssh_socket_toml" \
+            >> $stage/config.toml <<'        EOF'
+
+            [permissions.muster]
+            extends = ":workspace"
+
+            [permissions.muster.workspace_roots]
+            %s = true
+            %s = true
+            %s = true
+
+            [permissions.muster.network]
+            enabled = true
+
+            [permissions.muster.network.unix_sockets]
+            %s = "allow"
+            %s = "allow"
+        EOF
+
+        validation=$(CODEX_HOME=$stage codex app-server --strict-config </dev/null 2>&1) \
             || abend "fatal: Codex rejected $config:\n$validation"
 
         config_tmp=$(mktemp $codex_dir/.config.toml.XXXXXX)
@@ -323,8 +388,16 @@ function codex_app_server_ensure {
         rm -f $socket
     fi
     rm -f $pid_file
+    muster_ssh_socket
+    typeset -a ssh_environment=()
+    [[ -z $REPLY ]] || ssh_environment=( SSH_AUTH_SOCK=$REPLY )
     typeset server_pid=$(
-        "$(codex_nudge_bin)" --socket "$socket" --start-server --log "$log"
+        env "${ssh_environment[@]}" \
+            "$(codex_nudge_bin)" \
+                --socket "$socket" \
+                --start-server \
+                --log "$log" \
+                --resume-config "$codex_daemon_resume_config"
     )
     print -r -- $server_pid > $pid_file
 

@@ -125,25 +125,33 @@ async function startServer(options) {
     const env = { ...process.env };
     delete env.MUSTER_WINDOW_SLUG;
     delete env.MUSTER_SLUG;
-    const dlsSocket = env.DLS_SOCKET ||
-        `${env.XDG_RUNTIME_DIR || `${env.HOME}/.local/state/dls`}/dls.socket`;
-    const permissions = `{ muster = { extends = ":workspace", network = { enabled = true, unix_sockets = { ${JSON.stringify(dlsSocket)} = "allow" } } } }`;
+
+    const codexArgs = [
+        'app-server',
+        '--listen',
+        `unix://${options.socket}`,
+        '--disable',
+        'apps',
+        '--enable',
+        'network_proxy',
+    ];
+    const permissionProfile = options.resumeConfig?.config?.permissions?.muster;
+    if (permissionProfile) {
+        const tomlMap = (entries, value) => `{${Object.keys(entries)
+            .map((key) => `${JSON.stringify(key)}=${JSON.stringify(value)}`)
+            .join(',')}}`;
+        codexArgs.push(
+            '-c', 'default_permissions="muster"',
+            '-c', `permissions.muster.extends=${JSON.stringify(permissionProfile.extends)}`,
+            '-c', `permissions.muster.workspace_roots=${tomlMap(permissionProfile.workspace_roots, true)}`,
+            '-c', `permissions.muster.network.enabled=${permissionProfile.network.enabled}`,
+            '-c', `permissions.muster.network.unix_sockets=${tomlMap(permissionProfile.network.unix_sockets, 'allow')}`,
+        );
+    }
 
     let child;
     try {
-        child = spawn('codex', [
-            'app-server',
-            '--listen',
-            `unix://${options.socket}`,
-            '--disable',
-            'apps',
-            '--enable',
-            'network_proxy',
-            '-c',
-            `permissions=${permissions}`,
-            '-c',
-            'default_permissions="muster"',
-        ], {
+        child = spawn('codex', codexArgs, {
             detached: true,
             env,
             stdio: ['ignore', log, log],
@@ -435,8 +443,8 @@ async function main() {
                 approvalPolicy: resumed.approvalPolicy,
                 approvalsReviewer: resumed.approvalsReviewer,
                 reasoningEffort: resumed.reasoningEffort,
-                activePermissionProfile: resumed.activePermissionProfile,
                 sandbox: resumed.sandbox,
+                activePermissionProfile: resumed.activePermissionProfile,
                 runtimeWorkspaceRoots: resumed.runtimeWorkspaceRoots,
             })}\n`);
             return;

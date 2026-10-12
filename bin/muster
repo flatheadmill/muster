@@ -42,6 +42,19 @@ function muster_state_root {
     REPLY=${MUSTER_STATE_HOME:-$base/muster}
 }
 
+function muster_ssh_socket {
+    if [[ $OSTYPE != darwin* ]]; then
+        REPLY=${SSH_AUTH_SOCK:-}
+        return
+    fi
+
+    REPLY=$HOME/.ssh/agent/local
+    if [[ ! -S $REPLY ]]; then
+        "${zshctl[argzero]:A}" ssh socket refresh --quiet || return
+    fi
+    [[ -S $REPLY ]] || abend 'fatal: local SSH agent socket is unavailable: %s' "$REPLY"
+}
+
 typeset -ga muster_private_tmux_environment=(
     -u TMUX
     -u AI_AGENT
