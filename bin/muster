@@ -365,7 +365,7 @@ function muster_claude_run {
             -e "MUSTER_SLUG=$address"
             $claude_bin
             --add-dir $HOME/code
-            --autocompact auto
+            --autocompact 950k
             --verbose
             --thinking-display summarized
             --effort $effort
