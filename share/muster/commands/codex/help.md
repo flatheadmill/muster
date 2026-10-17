@@ -10,7 +10,8 @@ address. Explicit named seats use the address `<slug>-<seat>` while
 sharing the same window directory and Wicket endpoint.
 
 Sessions run through one shared Codex app-server. `muster codex create` creates
-a named seat, `muster codex tui` opens a thread in the terminal, `muster codex
+a named seat, `muster codex configure` saves the main participant's model and
+effort preference, `muster codex tui` opens a thread in the terminal, `muster codex
 popup` opens a named seat in a persistent popup, and `muster codex nudge`
 submits a turn without attaching a TUI.
 

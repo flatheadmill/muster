@@ -14,8 +14,10 @@ window has neither. A named seat must first be created explicitly with `muster
 codex create`.
 
 The session uses the shared Codex app-server, the window's Wicket MCP endpoint,
-and the standard workspace-write configuration. The default participant uses
-`gpt-5.6-sol` with `medium` reasoning effort; a named seat uses its recorded
-model and effort. Arguments after `--` are passed to Codex.
+and the standard workspace-write configuration. The main participant uses the
+preference saved by `muster codex configure`, or `gpt-5.6-sol` with `medium`
+reasoning effort when none is saved. A named seat uses its recorded model and
+effort. Arguments after `--` are passed to Codex; interactive `/model` choices
+last until Muster next reapplies the saved preference.
 ## OPTIONS
 > options

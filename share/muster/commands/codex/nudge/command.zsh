@@ -12,8 +12,7 @@ function :execute:codex:nudge {
 
     typeset seat=${o_seat:-}
     typeset address=$o_slug
-    typeset model=gpt-5.6-sol
-    typeset effort=medium
+    typeset model= effort=
     if [[ -n $seat ]]; then
         codex_seat_settings $o_slug $seat
         address=$codex_seat_address

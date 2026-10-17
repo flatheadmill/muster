@@ -22,8 +22,7 @@ function :execute:codex:tui {
         || abend 'fatal: unable to enter window directory: %s' "$pane_dir"
 
     typeset address=$o_slug
-    typeset model=gpt-5.6-sol
-    typeset effort=medium
+    typeset model= effort=
     if [[ -n $seat ]]; then
         codex_seat_settings $o_slug $seat
         address=$codex_seat_address
@@ -37,6 +36,7 @@ function :execute:codex:tui {
     export MUSTER_WINDOW_SLUG=$o_slug
     export MUSTER_SLUG=$address
 
+    codex_daemon_settings $o_slug $address $model $effort
     codex_pane_configure $o_slug
 
     typeset session_id
@@ -50,7 +50,6 @@ function :execute:codex:tui {
         session_id=$REPLY
     fi
 
-    codex_daemon_settings $o_slug $address $model $effort
     muster_ssh_socket
     [[ -z $REPLY ]] || export SSH_AUTH_SOCK=$REPLY
     typeset -a nudge_args=( --slug $o_slug --probe )

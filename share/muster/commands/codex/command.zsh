@@ -6,11 +6,75 @@ function :args:codex {
     eval "$(args -CU -bx h,help -- "$@")"
 }
 
+function codex_main_config_file {
+    typeset slug=$1
+    muster_window_slug "$slug"
+    muster_state_root
+    typeset state_root=$REPLY ancestor parent directory
+    while [[ $state_root != / && $state_root == */ ]]; do
+        state_root=${state_root%/}
+    done
+
+    # Missing state is normal, but inaccessible state must not select defaults.
+    ancestor=$state_root
+    while [[ ! -e $ancestor && ! -L $ancestor ]]; do
+        parent=${ancestor:h}
+        [[ $parent != $ancestor ]] \
+            || abend 'fatal: cannot resolve Muster state root: %s' "$state_root"
+        ancestor=$parent
+    done
+    [[ -d $ancestor && -x $ancestor ]] \
+        || abend 'fatal: Muster state root has an unsearchable ancestor: %s' "$ancestor"
+    for directory in "$state_root" "$state_root/codex" "$state_root/codex/$slug"; do
+        [[ -e $directory || -L $directory ]] || continue
+        [[ -d $directory && -r $directory && -x $directory ]] \
+            || abend 'fatal: Codex state must be a readable directory: %s' "$directory"
+        [[ $directory == $state_root || ! -L $directory ]] \
+            || abend 'fatal: Codex state must not be a symbolic link: %s' "$directory"
+    done
+    REPLY=$state_root/codex/$slug/config.json
+}
+
+function codex_main_config_validate {
+    jq -ce --slurp '
+        if length == 1 and
+            (.[0] | type == "object" and
+                keys == ["effort", "model"] and
+                (.model | type == "string" and length > 0 and
+                    (test("[\u0000-\u001f\u007f]") | not) and test("\\S")) and
+                (.effort | . == "low" or . == "medium" or . == "high" or . == "xhigh"))
+        then .[0]
+        else error("expected model and effort (low, medium, high, or xhigh)")
+        end
+    '
+}
+
+function codex_main_settings {
+    codex_main_config_file "$1"
+    typeset config=$REPLY value
+    codex_main_model=gpt-5.6-sol
+    codex_main_effort=medium
+    [[ -e $config || -L $config ]] || return 0
+    [[ -f $config && ! -L $config && -r $config ]] \
+        || abend 'fatal: main Codex configuration must be an ordinary readable file: %s' "$config"
+    value=$(codex_main_config_validate < "$config" 2>/dev/null) \
+        || abend 'fatal: invalid main Codex configuration in %s' "$config"
+    codex_main_model=$(jq -r '.model' <<< "$value")
+    codex_main_effort=$(jq -r '.effort' <<< "$value")
+}
+
 function codex_daemon_settings {
     typeset slug=$1
     typeset address=${2:-$slug}
     typeset model=${3:-gpt-5.6-sol}
     typeset effort=${4:-}
+    # Creation, attachment, and nudges all build their settings here. Named
+    # seats retain the saved settings supplied by their existing reader.
+    if [[ $address == $slug ]]; then
+        codex_main_settings "$slug"
+        model=$codex_main_model
+        effort=$codex_main_effort
+    fi
     typeset code_root=$HOME/code
     typeset pane_root=$HOME/pane
     typeset ssh_socket=$HOME/.ssh/agent/local

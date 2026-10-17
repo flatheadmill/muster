@@ -16,8 +16,9 @@ prompt read from standard input, and reports when the app-server accepts the
 turn. This lets a command running inside a Codex sandbox wake a standing thread
 without opening the app-server's Unix socket itself.
 
-Before attaching or starting a turn, Muster restores the default participant's
-`medium` reasoning effort or the named seat's recorded model and effort.
+Before attaching or starting a turn, Muster restores the main participant's
+model and effort saved by `muster codex configure`, or `gpt-5.6-sol` with
+`medium` effort when none is saved. Named seats use their own recorded settings.
 
 Message delivery uses this command for bare window addresses and registered
 named Codex seats. `--probe`

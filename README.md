@@ -41,7 +41,18 @@ their inherited `SSH_AUTH_SOCK`.
 
 Muster keeps one standing Codex thread for each window. The interactive TUI and message-triggered turns use the same shared app-server configuration, so a conversation continues whether or not its terminal is open.
 
-The main window participant uses `gpt-5.6-sol` with `medium` reasoning effort. Named seats keep the model and effort recorded when they are created.
+The main window participant defaults to `gpt-5.6-sol` with `medium` reasoning effort. A window can save its own model and effort preference:
+
+```console
+$ muster codex configure --slug widget --model gpt-6-astra --effort high
+$ muster codex configure --slug widget --clear
+```
+
+Model and effort are required together; effort accepts `low`, `medium`, `high`, or `xhigh`. `--clear` removes the preference and restores the ordinary defaults. Named seats keep the model and effort recorded when they are created.
+
+The preference is stored in `codex/<slug>/config.json` under Muster's state root (normally `~/.local/state/muster`, or the configured `MUSTER_STATE_HOME` / `XDG_STATE_HOME` location). It contains only model and effort, leaves the conversation ID in `sid.json` untouched, and moves with the window when renamed. It may be saved before a thread exists; configuration alone does not register a participant in `muster windows --json`. Invalid configuration produces an error instead of falling back to defaults.
+
+Configuring a window starts no daemon or TUI. The preference applies on the next Muster resume or nudge; reopen an already attached TUI to apply it there. Interactive `/model` choices are temporary until Muster reapplies the saved preference.
 
 Opening a new window creates its room at `~/pane/<slug>`. Room slugs use lowercase letters, digits, and underscores; hyphens separate a room from a named participant.
 
