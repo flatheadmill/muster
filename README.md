@@ -154,3 +154,13 @@ Once a topic is active, the TMUX binding can reopen it without naming the topic 
 ```console
 $ muster omp run --slug widget
 ```
+
+## Tests
+
+Run the Zsh suites with:
+
+```sh
+zsh test/all.zsh
+```
+
+`ZSHCTL=/path/to/zshctl` selects another zshctl installation. The monitor suite can also run alone with `zsh test/monitor.zsh`. It exercises the real parser, dispatch and monitor with Zsh producer and nudge fixtures, checking exact record bytes, serial acceptance, exit status, signal forwarding and child cleanup. It uses jq to capture arguments and records and does not contact a live participant. Ordering is checked through begin/end events rather than clocks from different processes.
