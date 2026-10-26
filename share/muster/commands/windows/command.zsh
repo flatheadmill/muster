@@ -261,37 +261,19 @@ function muster_windows_inventory_uuid_harness {
 }
 
 function muster_windows_inventory_omp {
-    typeset namespace=$1 window_dir window active_file topic topics_dir
-    typeset topic_dir model_file model
+    typeset namespace=$1 window_dir window sid_file
 
     for window_dir in $namespace/*(N); do
         muster_windows_prepare_window_directory \
             "$window_dir" 'OMP registration directory' || continue
         window=$REPLY
-        active_file=$window_dir/active
-        [[ -e $active_file || -L $active_file ]] || continue
+        sid_file=$window_dir/sid.jsonl
+        [[ -e $sid_file || -L $sid_file ]] || continue
 
         muster_windows_require_directory "$window_dir" 'OMP registration directory'
         muster_windows_validate_slug "$window" "$window_dir" 'OMP window name'
-        muster_windows_require_file "$active_file" 'OMP active topic'
-        topic=$(<$active_file)
-        [[ -n $topic ]] || abend 'fatal: empty OMP active topic in %s' "$active_file"
-        muster_windows_validate_slug "$topic" "$active_file" 'OMP active topic'
-
-        topics_dir=$window_dir/topics
-        topic_dir=$topics_dir/$topic
-        model_file=$topic_dir/model
-        muster_windows_require_directory "$topics_dir" 'OMP topics directory'
-        muster_windows_require_directory "$topic_dir" 'OMP active topic directory'
-        muster_windows_require_file "$model_file" 'OMP active topic model'
-        model=$(<$model_file)
-        case $model in
-            (sol|opus|fable) ;;
-            (*) abend 'fatal: invalid OMP model in %s: %s' \
-                    "$model_file" "${model:-(empty)}" ;;
-        esac
-
-        muster_windows_add_row "$window" "${window}-omp" omp "$active_file"
+        muster_windows_require_file "$sid_file" 'OMP session'
+        muster_windows_add_row "$window" "${window}-omp" omp "$sid_file"
     done
 }
 

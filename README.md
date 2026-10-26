@@ -142,18 +142,19 @@ $ muster messages monitor --slug widget-grok
 
 ## OMP
 
-Each window has one OMP seat with durable, named topics. Creating a topic records its primary model without starting OMP. Running a topic makes it active, starts or resumes its transcript, and opens the window's OMP popup.
-
-```console
-$ muster omp create --slug widget --topic visual --model opus
-$ muster omp run --slug widget --topic visual
-```
-
-Once a topic is active, the TMUX binding can reopen it without naming the topic again.
+Each window has one durable OMP session. Its project-local OMP configuration
+selects the primary and advisor models. Muster starts or resumes that session,
+adds the window's messaging instructions, and opens it in a popup.
 
 ```console
 $ muster omp run --slug widget
 ```
+
+The transcript lives at `~/.local/state/muster/omp/widget/sid.jsonl`. OMP's own
+`/new`, `/fork`, and `/resume` commands remain available for deliberate
+conversation changes inside the session.
+
+The TMUX binding opens the session for the visible Puzzle window.
 
 ## Tests
 

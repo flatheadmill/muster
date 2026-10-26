@@ -120,9 +120,7 @@ mkdir -p \
     $state/claude/zeta \
     $state/fable/alpha \
     $state/grok/beta \
-    $state/omp/alpha/topics/selected \
-    $state/omp/alpha/topics/unselected \
-    $state/omp/legacy
+    $state/omp/alpha
 print -r -- '"thread-shared"' > $state/codex/alpha/seats/sol/sid.json
 write_seat_config $state/codex/alpha/seats/sol/config.json alpha-sol
 print -r -- 'not a registration' > $state/codex/alpha/seats/.staged/config.json
@@ -134,11 +132,7 @@ print -r -- 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' > $state/claude/zeta/sid
 print -r -- 'infrastructure' > $state/claude/hooks.log
 print -r -- 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' > $state/fable/alpha/sid
 print -r -- 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' > $state/grok/beta/sid
-print -r -- selected > $state/omp/alpha/active
-print -r -- sol > $state/omp/alpha/topics/selected/model
-print -r -- unsupported > $state/omp/alpha/topics/unselected/model
-print -r -- '{"legacy":true}' > $state/omp/legacy/sid.jsonl
-print -r -- 'legacy-token' > $state/omp/legacy/sid
+print -r -- '{"session":true}' > $state/omp/alpha/sid.jsonl
 
 typeset before=$(tree_snapshot $state)
 run_windows $state --json
@@ -427,22 +421,17 @@ print -r -- '"seat-thread"' > $bad/codex/window/seats/fable/sid.json
 print -r -- 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' > $bad/fable/window/sid
 assert_failure 'duplicate participant address' $bad $bad/fable/window/sid
 
-bad=$work/bad-topic
-mkdir -p $bad/omp/window
-print -r -- 'bad-topic' > $bad/omp/window/active
-assert_failure 'invalid active OMP topic' $bad $bad/omp/window/active
-
-bad=$work/bad-model
-mkdir -p $bad/omp/window/topics/topic
-print -r -- topic > $bad/omp/window/active
-print -r -- unsupported > $bad/omp/window/topics/topic/model
-assert_failure 'invalid active OMP model' $bad $bad/omp/window/topics/topic/model
-
 bad=$work/symlink-file
 mkdir -p $bad/codex/window
 print -r -- '"linked-thread"' > $bad/target
 ln -s $bad/target $bad/codex/window/sid.json
 assert_failure 'symlinked registration file' $bad $bad/codex/window/sid.json
+
+bad=$work/symlink-omp-file
+mkdir -p $bad/omp/window
+print -r -- '{"session":true}' > $bad/target
+ln -s $bad/target $bad/omp/window/sid.jsonl
+assert_failure 'symlinked OMP registration file' $bad $bad/omp/window/sid.jsonl
 
 bad=$work/symlink-directory
 mkdir -p $bad/real
@@ -475,9 +464,8 @@ assert_failure 'inaccessible UUID-harness window beside a good row' \
 chmod 700 $bad/fable/zulu
 
 bad=$work/inaccessible-omp-window
-mkdir -p $bad/omp/alpha/topics/topic $bad/omp/zulu
-print -r -- topic > $bad/omp/alpha/active
-print -r -- opus > $bad/omp/alpha/topics/topic/model
+mkdir -p $bad/omp/alpha $bad/omp/zulu
+print -r -- '{"session":true}' > $bad/omp/alpha/sid.jsonl
 chmod 000 $bad/omp/zulu
 assert_failure 'inaccessible OMP window beside a good row' \
     $bad $bad/omp/zulu
@@ -498,9 +486,8 @@ assert_failure 'dangling UUID-harness window symlink beside a good row' \
     $bad $bad/grok/zulu
 
 bad=$work/dangling-omp-window
-mkdir -p $bad/omp/alpha/topics/topic
-print -r -- topic > $bad/omp/alpha/active
-print -r -- fable > $bad/omp/alpha/topics/topic/model
+mkdir -p $bad/omp/alpha
+print -r -- '{"session":true}' > $bad/omp/alpha/sid.jsonl
 ln -s $bad/missing $bad/omp/zulu
 assert_failure 'dangling OMP window symlink beside a good row' \
     $bad $bad/omp/zulu

@@ -1,15 +1,18 @@
 # desc
-Run an existing OMP topic.
+Run the window's OMP session.
 # opt help
 Display help for `muster omp run`.
 # opt slug
 Set the window slug.
-# opt topic
-Select an existing topic instead of the active topic.
 # man
 ## DESCRIPTION
-Opens the selected topic in the window's OMP seat. If `--topic` is omitted,
-the active topic is used. A cold start places the topic's current Muster model
-selector in the room config before resuming its transcript.
+Starts or resumes the window's one OMP session and opens it in a popup. The
+effective project configuration supplies the primary model. Muster passes that
+model explicitly when resuming so an older model persisted in the transcript
+does not override the current project default.
+
+The session transcript is stored at
+`~/.local/state/muster/omp/<slug>/sid.jsonl`. OMP receives the participant
+address `<slug>-omp` and current Muster messaging instructions.
 ## OPTIONS
 > options
