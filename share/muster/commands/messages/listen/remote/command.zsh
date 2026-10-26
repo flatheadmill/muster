@@ -29,10 +29,13 @@ function :execute:messages:listen:remote {
         return
     fi
 
+    # The guard above preserves a nudge until a read catches it. Once caught up,
+    # read may be beyond waited because it drains complete batches.
+    typeset floor=${last_read:-$waited}
     typeset file
     while true; do
         for file in $inbox/*(N.on); do
-            [[ -z $waited || ${file:t} > $waited ]] || continue
+            [[ -z $floor || ${file:t} > $floor ]] || continue
             muster_write_cursor $waited_file ${file:t}
             print -r -- $nudge
             return
