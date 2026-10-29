@@ -134,6 +134,36 @@ check 'clearing an absent preference succeeds without creating state' \
 runner settings widget
 check 'missing preference uses ordinary defaults' \
     settings_match gpt-5.6-sol medium "$work/out"
+check 'resume permissions admit Pinniped cache updates' jq -e \
+    --arg path "$fixture_home/.config/pinniped" \
+    '.runtimeWorkspaceRoots | index($path) != null' "$work/out"
+check 'named permission profile admits the Pinniped directory' jq -e \
+    --arg path "$fixture_home/.config/pinniped" \
+    '.config.permissions.muster.workspace_roots[$path] == true' "$work/out"
+check 'resume permissions admit Postcard credential renewal' jq -e \
+    --arg path "$fixture_home/.config/postcard" \
+    '.runtimeWorkspaceRoots | index($path) != null' "$work/out"
+check 'named permission profile admits Postcard credentials' jq -e \
+    --arg path "$fixture_home/.config/postcard" \
+    '.config.permissions.muster.workspace_roots[$path] == true' "$work/out"
+check 'resume permissions admit Postcard reader state updates' jq -e \
+    --arg path "$fixture_home/.local/state/postcard" \
+    '.runtimeWorkspaceRoots | index($path) != null' "$work/out"
+check 'named permission profile admits the Postcard state directory' jq -e \
+    --arg path "$fixture_home/.local/state/postcard" \
+    '.config.permissions.muster.workspace_roots[$path] == true' "$work/out"
+check 'resume permissions admit Missive session renewal' jq -e \
+    --arg path "$fixture_home/.config/missive" \
+    '.runtimeWorkspaceRoots | index($path) != null' "$work/out"
+check 'named permission profile admits Missive configuration' jq -e \
+    --arg path "$fixture_home/.config/missive" \
+    '.config.permissions.muster.workspace_roots[$path] == true' "$work/out"
+check 'resume permissions admit Missive reader state updates' jq -e \
+    --arg path "$fixture_home/.local/state/missive" \
+    '.runtimeWorkspaceRoots | index($path) != null' "$work/out"
+check 'named permission profile admits the Missive state directory' jq -e \
+    --arg path "$fixture_home/.local/state/missive" \
+    '.config.permissions.muster.workspace_roots[$path] == true' "$work/out"
 check 'reading defaults does not create state' test ! -e "$state"
 
 configure --model gpt-6-astra --effort high

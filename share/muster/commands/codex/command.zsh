@@ -77,6 +77,11 @@ function codex_daemon_settings {
     fi
     typeset code_root=$HOME/code
     typeset pane_root=$HOME/pane
+    typeset pinniped_root=$HOME/.config/pinniped
+    typeset postcard_config_root=${XDG_CONFIG_HOME:-$HOME/.config}/postcard
+    typeset postcard_state_root=${XDG_STATE_HOME:-$HOME/.local/state}/postcard
+    typeset missive_config_root=${XDG_CONFIG_HOME:-$HOME/.config}/missive
+    typeset missive_state_root=${XDG_STATE_HOME:-$HOME/.local/state}/missive
     typeset ssh_socket=$HOME/.ssh/agent/local
     typeset dls_socket=${DLS_SOCKET:-${XDG_RUNTIME_DIR:-$HOME/.local/state/dls}/dls.socket}
     typeset mcp_url="http://localhost:6502/mcp/$slug"
@@ -98,6 +103,11 @@ function codex_daemon_settings {
         --arg cwd "$codex_daemon_cwd" \
         --arg code_root "$code_root" \
         --arg pane_root "$pane_root" \
+        --arg pinniped_root "$pinniped_root" \
+        --arg postcard_config_root "$postcard_config_root" \
+        --arg postcard_state_root "$postcard_state_root" \
+        --arg missive_config_root "$missive_config_root" \
+        --arg missive_state_root "$missive_state_root" \
         --arg muster_root "$muster_root" \
         --arg ssh_socket "$ssh_socket" \
         --arg dls_socket "$dls_socket" \
@@ -107,7 +117,7 @@ function codex_daemon_settings {
         ({
             model: $model,
             cwd: $cwd,
-            runtimeWorkspaceRoots: [$code_root, $pane_root, $muster_root],
+            runtimeWorkspaceRoots: [$code_root, $pane_root, $muster_root, $pinniped_root, $postcard_config_root, $postcard_state_root, $missive_config_root, $missive_state_root],
             approvalPolicy: "on-request",
             approvalsReviewer: "auto_review",
             permissions: "muster",
@@ -119,7 +129,12 @@ function codex_daemon_settings {
                         workspace_roots: {
                             ($code_root): true,
                             ($pane_root): true,
-                            ($muster_root): true
+                            ($muster_root): true,
+                            ($pinniped_root): true,
+                            ($postcard_config_root): true,
+                            ($postcard_state_root): true,
+                            ($missive_config_root): true,
+                            ($missive_state_root): true
                         },
                         network: {
                             enabled: true,
@@ -178,15 +193,25 @@ function codex_pane_configure {
     typeset mcp_url="http://localhost:6502/mcp/$slug"
     typeset code_root=$HOME/code
     typeset pane_root=$HOME/pane
+    typeset pinniped_root=$HOME/.config/pinniped
+    typeset postcard_config_root=${XDG_CONFIG_HOME:-$HOME/.config}/postcard
+    typeset postcard_state_root=${XDG_STATE_HOME:-$HOME/.local/state}/postcard
+    typeset missive_config_root=${XDG_CONFIG_HOME:-$HOME/.config}/missive
+    typeset missive_state_root=${XDG_STATE_HOME:-$HOME/.local/state}/missive
     typeset ssh_socket=$HOME/.ssh/agent/local
     typeset dls_socket=${DLS_SOCKET:-${XDG_RUNTIME_DIR:-$HOME/.local/state/dls}/dls.socket}
     muster_state_root
     typeset muster_root=$REPLY
     typeset stage config_tmp staged_tmp validation
-    typeset code_root_toml pane_root_toml muster_root_toml ssh_socket_toml dls_socket_toml
+    typeset code_root_toml pane_root_toml pinniped_root_toml postcard_config_root_toml postcard_state_root_toml missive_config_root_toml missive_state_root_toml muster_root_toml ssh_socket_toml dls_socket_toml
 
     code_root_toml=$(jq -Rn --arg value "$code_root" '$value') || return
     pane_root_toml=$(jq -Rn --arg value "$pane_root" '$value') || return
+    pinniped_root_toml=$(jq -Rn --arg value "$pinniped_root" '$value') || return
+    postcard_config_root_toml=$(jq -Rn --arg value "$postcard_config_root" '$value') || return
+    postcard_state_root_toml=$(jq -Rn --arg value "$postcard_state_root" '$value') || return
+    missive_config_root_toml=$(jq -Rn --arg value "$missive_config_root" '$value') || return
+    missive_state_root_toml=$(jq -Rn --arg value "$missive_state_root" '$value') || return
     muster_root_toml=$(jq -Rn --arg value "$muster_root" '$value') || return
     ssh_socket_toml=$(jq -Rn --arg value "$ssh_socket" '$value') || return
     dls_socket_toml=$(jq -Rn --arg value "$dls_socket" '$value') || return
@@ -222,6 +247,11 @@ function codex_pane_configure {
             "$code_root_toml" \
             "$pane_root_toml" \
             "$muster_root_toml" \
+            "$pinniped_root_toml" \
+            "$postcard_config_root_toml" \
+            "$postcard_state_root_toml" \
+            "$missive_config_root_toml" \
+            "$missive_state_root_toml" \
             "$dls_socket_toml" \
             "$ssh_socket_toml" \
             >> $stage/config.toml <<'        EOF'
@@ -230,6 +260,11 @@ function codex_pane_configure {
             extends = ":workspace"
 
             [permissions.muster.workspace_roots]
+            %s = true
+            %s = true
+            %s = true
+            %s = true
+            %s = true
             %s = true
             %s = true
             %s = true

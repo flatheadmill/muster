@@ -43,7 +43,15 @@ function :execute:messages:send {
     fi
     [[ -z $from ]] || muster_address $from
 
-    typeset message=$(cat)
+    muster_timeout_command
+    typeset timeout_command=$REPLY message
+    message=$($timeout_command 60s cat)
+    integer input_status=$?
+    if (( input_status == 124 )); then
+        abend "fatal: timed out waiting for a message on standard input; use: print -r -- 'message' | muster messages send --slug $o_slug"
+    elif (( input_status )); then
+        abend 'fatal: unable to read message from standard input'
+    fi
     typeset payload=$(jq -cn \
         --arg slug "$o_slug" \
         --arg from "$from" \

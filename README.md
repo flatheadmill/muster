@@ -41,6 +41,20 @@ their inherited `SSH_AUTH_SOCK`.
 
 Muster keeps one standing Codex thread for each window. The interactive TUI and message-triggered turns use the same shared app-server configuration, so a conversation continues whether or not its terminal is open.
 
+The generated Codex permission profile also admits `~/.config/pinniped` as a
+writable workspace root. This lets Pinniped update its credential caches and
+their adjacent lock files during ordinary sandboxed Kubernetes operations,
+without granting the rest of `~/.config` write access.
+
+Postcard's configuration and state directories (normally `~/.config/postcard`
+and `~/.local/state/postcard`) are writable as well, so it can renew credentials
+and durable Slack readers can update their cursors and adjacent lock files
+without leaving the sandbox.
+
+Missive receives the corresponding narrow roots, normally `~/.config/missive`
+and `~/.local/state/missive`, so its Keycloak session renewal, aliases, durable
+readers, cursors, locks, and send evidence remain usable inside the sandbox.
+
 The main window participant defaults to `gpt-5.6-sol` with `medium` reasoning effort. A window can save its own model and effort preference:
 
 ```console

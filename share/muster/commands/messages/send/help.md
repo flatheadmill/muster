@@ -11,6 +11,8 @@ The sender address.
 `muster messages send` reads a message from standard input and delivers it to
 the inbox named by `--slug`. The address must belong to an existing window
 directory under `~/pane`, except for the special `putter` desktop address.
+If standard input does not reach EOF within one minute, the command exits with
+an example of the required pipeline instead of waiting indefinitely.
 
 Messages to `putter` are stored in its normal Muster inbox. Putter wakes itself
 with timers and reads that inbox; sending a message does not open ChatGPT or
