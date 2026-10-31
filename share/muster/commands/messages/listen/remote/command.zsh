@@ -19,21 +19,25 @@ function :execute:messages:listen:remote {
     typeset read_file=$msgdir/.read
     mkdir -p $inbox || abend 'fatal: unable to create inbox: %s' "$inbox"
 
-    typeset waited= last_read=
-    [[ ! -f $waited_file ]] || waited=$(<$waited_file)
-    [[ ! -f $read_file ]] || last_read=$(<$read_file)
-
     typeset nudge="Please check your messages by running \`muster messages read --slug $slug\`."
-    if [[ -n $waited && ( -z $last_read || $last_read < $waited ) ]]; then
-        print -r -- $nudge
-        return
-    fi
-
-    # The guard above preserves a nudge until a read catches it. Once caught up,
-    # read may be beyond waited because it drains complete batches.
-    typeset floor=${last_read:-$waited}
-    typeset file
+    typeset waited last_read floor file
     while true; do
+        waited=
+        last_read=
+        [[ ! -f $waited_file ]] || waited=$(<$waited_file)
+        [[ ! -f $read_file ]] || last_read=$(<$read_file)
+
+        # A replacement listener is armed before the pending batch is read. It
+        # waits through that read instead of emitting the same nudge again.
+        if [[ -n $waited && ( -z $last_read || $last_read < $waited ) ]]; then
+            $timeout_command 300s fswatch -1 $msgdir $inbox >/dev/null
+            (( $? != 124 )) || printf '.'
+            continue
+        fi
+
+        # Read may be beyond waited because it drains complete batches.
+        floor=$waited
+        [[ -z $last_read || ( -n $floor && $last_read < $floor ) ]] || floor=$last_read
         for file in $inbox/*(N.on); do
             [[ -z $floor || ${file:t} > $floor ]] || continue
             muster_write_cursor $waited_file ${file:t}
@@ -41,7 +45,7 @@ function :execute:messages:listen:remote {
             return
         done
 
-        $timeout_command 300s fswatch -1 $inbox >/dev/null
+        $timeout_command 300s fswatch -1 $msgdir $inbox >/dev/null
         (( $? != 124 )) || printf '.'
     done
 }

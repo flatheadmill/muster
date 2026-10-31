@@ -20,9 +20,10 @@ function muster_address { return 0 }
 function muster_messages_dir { REPLY=$msgdir }
 function muster_write_cursor { print -r -- $2 > $1 }
 function messages_test_block {
-    while true; do
+    while [[ ! -e $work/wake ]]; do
         zselect -t 100
     done
+    rm -f -- $work/wake
 }
 
 source $root/share/muster/commands/messages/listen/remote/command.zsh
@@ -56,6 +57,18 @@ function listen_background {
     listener=$!
 }
 
+function listener_alive {
+    kill -0 $listener 2>/dev/null
+}
+
+function await_listener_exit {
+    integer attempts=100
+    while listener_alive && (( attempts-- )); do
+        zselect -t 1
+    done
+    ! listener_alive
+}
+
 function cleanup {
     if (( listener )) && kill -0 $listener 2>/dev/null; then
         kill -TERM $listener 2>/dev/null
@@ -80,9 +93,23 @@ trap 'cleanup; exit 143' TERM HUP
     reset_case
     print -r -- first > $inbox/001
     print -r -- 001 > $msgdir/.waited
-    listen_foreground
-    check 'an unread nudge repeats until read catches it' \
+    listen_background
+    zselect -t 20
+    check 'a replacement listener waits behind the pending read' listener_alive
+    check 'a replacement listener does not repeat the pending nudge' test ! -s $work/out
+    print -r -- 001 > $msgdir/.read
+    : > $work/wake
+    zselect -t 20
+    check 'the replacement remains armed after the read catches up' listener_alive
+    print -r -- second > $inbox/002
+    : > $work/wake
+    check 'the replacement exits for the next message' await_listener_exit
+    check 'the next message emits one nudge' \
         grep -Fxq 'Please check your messages by running `muster messages read --slug widget`.' $work/out
+    check 'the next message advances the waited cursor' \
+        grep -Fxq 002 $msgdir/.waited
+    wait $listener
+    listener=0
 
     reset_case
     print -r -- first > $inbox/001
