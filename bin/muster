@@ -156,6 +156,22 @@ function muster_timeout_command {
     fi
 }
 
+function muster_nvim_socket {
+    typeset slug=${1:-}
+    if [[ -n $slug ]]; then
+        muster_address $slug
+        REPLY=$HOME/pane/${slug//-/\/}/nvim.sock
+    elif [[ -n ${NVIM_SOCKET:-} ]]; then
+        REPLY=$NVIM_SOCKET
+    else
+        abend 'fatal: --slug or NVIM_SOCKET is required'
+    fi
+}
+
+function muster_nvim_remote {
+    NVIM_LOG_FILE=${NVIM_LOG_FILE:-/dev/null} nvim "$@"
+}
+
 function muster_write_cursor {
     typeset cursor_path=$1 value=$2
     typeset tmp=$cursor_path.$$.tmp

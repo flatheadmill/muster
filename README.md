@@ -21,6 +21,22 @@ Please review the change.
 
 Run `muster messages --help` for storage and remote-host configuration.
 
+## Neovim
+
+Muster can control a Neovim instance listening beneath `~/pane`. A simple slug
+such as `widget` resolves to `~/pane/widget/nvim.sock`; hyphens encode nested
+directories, so `dotfiles-nvim` resolves to `~/pane/dotfiles/nvim/nvim.sock`.
+It can send keys, evaluate Vimscript expressions, and execute multiline Lua
+chunks whose non-nil results are returned as JSON. The bridge uses Neovim's
+native remote interface and requires no Python adapter.
+
+```console
+$ nvim --listen ~/pane/widget/nvim.sock
+$ muster nvim lua --slug widget 'return vim.version()'
+```
+
+`NVIM\_SOCKET` may select a socket directly when `--slug` is omitted.
+
 ## Stable SSH\_AUTH\_SOCK
 
 On macOS, Muster gives long-running Codex processes the stable path
