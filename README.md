@@ -57,6 +57,8 @@ their inherited `SSH_AUTH_SOCK`.
 
 Muster keeps one standing Codex thread for each window. The interactive TUI and message-triggered turns use the same shared app-server configuration, so a conversation continues whether or not its terminal is open.
 
+Muster disables Codex's spawned-agent tools at the app-server, thread-resume and TUI attachment boundaries. Main window threads and explicitly created named seats remain independent standing participants; they are not spawned agents. This keeps delegation on Muster's durable message paths instead of creating child threads inside a conversation.
+
 The generated Codex permission profile also admits `~/.config/pinniped` as a
 writable workspace root. This lets Pinniped update its credential caches and
 their adjacent lock files during ordinary sandboxed Kubernetes operations,

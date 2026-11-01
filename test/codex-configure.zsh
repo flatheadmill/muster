@@ -81,8 +81,10 @@ process.stdout.write(JSON.stringify({threadId: 'fixture-thread'}) + '\n');
 EOF
 cat > "$fake_bin/codex" <<'EOF'
 #!/usr/bin/env node
-require('node:fs').writeFileSync(`${process.env.MUSTER_TEST_WORK}/log/tui.json`,
-    JSON.stringify(process.argv.slice(2)));
+const args = process.argv.slice(2);
+const name = args[0] === 'app-server' ? 'daemon' : 'tui';
+require('node:fs').writeFileSync(`${process.env.MUSTER_TEST_WORK}/log/${name}.json`,
+    JSON.stringify(args));
 EOF
 cat > "$fake_bin/tmux" <<'EOF'
 #!/bin/sh
@@ -164,7 +166,29 @@ check 'resume permissions admit Missive reader state updates' jq -e \
 check 'named permission profile admits the Missive state directory' jq -e \
     --arg path "$fixture_home/.local/state/missive" \
     '.config.permissions.muster.workspace_roots[$path] == true' "$work/out"
+check 'resume configuration disables spawned agents' jq -e \
+    '.config.agents.enabled == false and
+     .config.features.multi_agent == false and
+     .config.features.multi_agent_v2 == false' "$work/out"
 check 'reading defaults does not create state' test ! -e "$state"
+
+run "$root/bin/codex-nudge" \
+    --socket "$work/app-server.sock" \
+    --start-server \
+    --log "$work/log/app-server.log"
+check 'app-server launch succeeds' succeeded
+integer daemon_wait
+for daemon_wait in {1..50}; do
+    [[ -f $work/log/daemon.json ]] && break
+    sleep 0.02
+done
+check 'shared app-server disables spawned agents' jq -e '
+    . as $args |
+    any(range(0; length - 1); $args[.] == "--disable" and $args[. + 1] == "multi_agent") and
+    any(range(0; length - 1); $args[.] == "--disable" and $args[. + 1] == "multi_agent_v2") and
+    any(.[]; . == "agents.enabled=false")
+' "$work/log/daemon.json"
+rm -f "$work/log/daemon.json" "$work/log/app-server.log"
 
 configure --model gpt-6-astra --effort high
 check 'configure succeeds before the room or thread exists' succeeded
@@ -220,6 +244,12 @@ check 'TUI probe uses the same preference' \
 check 'TUI arguments carry the same model and effort' jq -e \
     '.[index("--model") + 1] == "gpt-6-astra" and
      any(.[]; . == "model_reasoning_effort=\"high\"")' "$work/log/tui.json"
+check 'TUI arguments disable spawned agents' jq -e '
+    . as $args |
+    any(range(0; length - 1); $args[.] == "--disable" and $args[. + 1] == "multi_agent") and
+    any(range(0; length - 1); $args[.] == "--disable" and $args[. + 1] == "multi_agent_v2") and
+    any(.[]; . == "agents.enabled=false")
+' "$work/log/tui.json"
 typeset sid=$(<"$state/codex/widget/sid.json")
 configure --model gpt-6.1-sol --effort low
 check 'changing preference leaves the SID untouched' \
@@ -228,7 +258,10 @@ runner nudge widget <<< 'Fixture prompt.'
 check 'nudge succeeds through the queue' succeeded
 check 'nudge reads the newly saved preference' jq -e \
     '.thread == "fixture-thread" and .resumeConfig.model == "gpt-6.1-sol" and
-     .resumeConfig.config.model_reasoning_effort == "low"' "$work/log/queued.json"
+     .resumeConfig.config.model_reasoning_effort == "low" and
+     .resumeConfig.config.agents.enabled == false and
+     .resumeConfig.config.features.multi_agent == false and
+     .resumeConfig.config.features.multi_agent_v2 == false' "$work/log/queued.json"
 rm "$work/log/start.json"
 runner tui widget
 check 'resuming an existing TUI uses the new preference' \

@@ -151,7 +151,12 @@ function codex_daemon_settings {
                         MUSTER_SLUG: $agent_slug
                     }
                 },
-                features: {apps: false},
+                agents: {enabled: false},
+                features: {
+                    apps: false,
+                    multi_agent: false,
+                    multi_agent_v2: false
+                },
                 mcp_servers: {
                     o: {
                         url: $mcp_url,
@@ -167,6 +172,9 @@ function codex_daemon_settings {
     ')
     codex_mcp_cli_args=(
         --disable apps
+        --disable multi_agent
+        --disable multi_agent_v2
+        -c 'agents.enabled=false'
         -c "mcp_servers.o.url=\"$mcp_url\""
         -c 'mcp_servers.o.default_tools_approval_mode="prompt"'
         -c 'mcp_servers.o.tools.tools.approval_mode="approve"'
