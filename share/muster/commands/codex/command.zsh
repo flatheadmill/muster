@@ -422,6 +422,7 @@ function codex_nudge_relay_ensure {
     typeset queue=$2
     typeset state_dir=${socket:h}
     typeset pid_file=$state_dir/nudge-relay.pid
+    typeset control=$state_dir/nudge-relay.sock
     typeset lock=$state_dir/nudge-relay.lock
     typeset log=$state_dir/nudge-relay.log
     typeset relay_pid
@@ -432,27 +433,30 @@ function codex_nudge_relay_ensure {
     typeset lockfd
     zsystem flock -f lockfd $lock
 
-    if [[ -f $pid_file ]]; then
-        relay_pid=$(<$pid_file)
-        if [[ $relay_pid == <-> ]] && kill -0 $relay_pid 2>/dev/null; then
-            zsystem flock -u $lockfd
-            return
-        fi
+    if "$(codex_nudge_relay_bin)" --control "$control" --probe; then
+        zsystem flock -u $lockfd
+        return
     fi
 
     rm -f $pid_file
     relay_pid=$("$(codex_nudge_relay_bin)" \
         --socket "$socket" \
         --queue "$queue" \
+        --control "$control" \
         --start \
         --log "$log") \
         || abend 'fatal: unable to start Codex nudge relay; see %s' "$log"
     print -r -- $relay_pid > $pid_file
 
-    sleep 0.1
-    kill -0 $relay_pid 2>/dev/null \
-        || abend 'fatal: Codex nudge relay exited during startup; see %s' "$log"
-    zsystem flock -u $lockfd
+    integer attempt
+    for attempt in {1..50}; do
+        if "$(codex_nudge_relay_bin)" --control "$control" --probe; then
+            zsystem flock -u $lockfd
+            return
+        fi
+        sleep 0.02
+    done
+    abend 'fatal: Codex nudge relay did not become ready; see %s' "$log"
 }
 
 function codex_app_server_ensure {

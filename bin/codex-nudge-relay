@@ -1,18 +1,26 @@
 #!/usr/bin/env node
 
 const fs = require('node:fs');
+const net = require('node:net');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { once } = require('node:events');
 
 function usage() {
     process.stdout.write(
-        'Usage: codex-nudge-relay --socket PATH --queue PATH [--start --log PATH]\n',
+        'Usage: codex-nudge-relay --control PATH [--probe | --socket PATH --queue PATH [--start --log PATH]]\n',
     );
 }
 
 function parseArgs(argv) {
-    const options = { socket: null, queue: null, start: false, log: null };
+    const options = {
+        socket: null,
+        queue: null,
+        control: null,
+        probe: false,
+        start: false,
+        log: null,
+    };
     for (let i = 0; i < argv.length; i += 1) {
         switch (argv[i]) {
             case '--socket':
@@ -20,6 +28,12 @@ function parseArgs(argv) {
                 break;
             case '--queue':
                 options.queue = argv[++i];
+                break;
+            case '--control':
+                options.control = argv[++i];
+                break;
+            case '--probe':
+                options.probe = true;
                 break;
             case '--start':
                 options.start = true;
@@ -36,10 +50,51 @@ function parseArgs(argv) {
                 throw new Error(`unknown option: ${argv[i]}`);
         }
     }
+    if (!options.control) throw new Error('--control is required');
+    if (options.probe) return options;
     if (!options.socket) throw new Error('--socket is required');
     if (!options.queue) throw new Error('--queue is required');
     if (options.start && !options.log) throw new Error('--log is required with --start');
     return options;
+}
+
+function probe(control) {
+    return new Promise((resolve) => {
+        const client = net.createConnection(control);
+        let reply = '';
+        let settled = false;
+        const finish = (ok) => {
+            if (settled) return;
+            settled = true;
+            client.destroy();
+            resolve(ok);
+        };
+        client.setTimeout(500, () => finish(false));
+        client.on('data', (chunk) => {
+            reply += chunk.toString('utf8');
+        });
+        client.on('end', () => finish(reply.trim() === 'ok'));
+        client.on('error', () => finish(false));
+    });
+}
+
+async function listen(control) {
+    try {
+        await fs.promises.unlink(control);
+    } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+    }
+
+    const server = net.createServer((client) => client.end('ok\n'));
+    await new Promise((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(control, () => {
+            server.removeListener('error', reject);
+            resolve();
+        });
+    });
+    await fs.promises.chmod(control, 0o600);
+    return server;
 }
 
 function delay(milliseconds) {
@@ -146,6 +201,11 @@ async function serve(options) {
     for (const directory of Object.values(directories)) {
         await fs.promises.mkdir(directory, { recursive: true, mode: 0o700 });
     }
+    await fs.promises.mkdir(path.dirname(options.control), {
+        recursive: true,
+        mode: 0o700,
+    });
+    await listen(options.control);
     await recover(directories.processing, directories.requests);
 
     for (;;) {
@@ -169,6 +229,8 @@ async function start(options) {
             options.socket,
             '--queue',
             options.queue,
+            '--control',
+            options.control,
         ], {
             detached: true,
             stdio: ['ignore', log, log],
@@ -183,7 +245,9 @@ async function start(options) {
 
 async function main() {
     const options = parseArgs(process.argv.slice(2));
-    if (options.start) {
+    if (options.probe) {
+        if (!await probe(options.control)) process.exitCode = 1;
+    } else if (options.start) {
         await start(options);
     } else {
         await serve(options);
