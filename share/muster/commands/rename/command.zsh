@@ -25,6 +25,7 @@ function muster_rename_add_move {
 function muster_rename_revalidate_plan {
     typeset source destination entry name
     integer index
+    ( muster_omp_state $o_slug; muster_omp_state $o_to ) || return 1
     for entry in $muster_rename_state/messages/*(N); do
         name=${entry:t}
         [[ $name != $o_to && $name != $o_to-* ]] || {
@@ -51,6 +52,12 @@ function muster_rename_revalidate_plan {
 
 function muster_rename_require_session_absent {
     typeset server=$1 name=$2 description=$3
+    if [[ $server == muster-omp ]]; then
+        if muster_omp_session_exists $name; then
+            abend 'fatal: %s participant session exists: %s' "$description" "$name"
+        fi
+        return 0
+    fi
     env -u TMUX tmux -L $server has-session -t "=$name" 2>/dev/null &&
         abend 'fatal: %s participant session exists: %s' "$description" "$name"
 }
@@ -281,6 +288,10 @@ function :execute:rename {
     muster_state_root
     typeset muster_rename_state=$REPLY
     typeset lock=$muster_rename_state/rename.lock
+    muster_omp_state $o_slug
+    muster_omp_state $o_to
+    muster_omp_collisions $o_slug
+    muster_omp_collisions $o_to
 
     typeset -a muster_rename_sources=() muster_rename_destinations=()
     typeset -a muster_rename_guard_destinations=()
@@ -310,6 +321,7 @@ function :execute:rename {
         for entry in $messages/*(N); do
             name=${entry:t}
             if [[ $name == $o_slug || $name == $o_slug-* ]]; then
+                muster_messages_dir $name
                 [[ -d $entry && ! -L $entry ]] ||
                     abend 'fatal: message address is not an ordinary directory: %s' "$entry"
                 muster_rename_add_move $entry $messages/${o_to}${name#$o_slug}
@@ -362,6 +374,10 @@ function :execute:rename {
         muster_rename_require_session_absent muster-grok ${o_to}-grok destination
         muster_rename_require_session_absent muster-omp $o_slug source
         muster_rename_require_session_absent muster-omp $o_to destination
+        for seat in audit bench; do
+            muster_rename_require_session_absent muster-omp ${o_slug}-${seat} source
+            muster_rename_require_session_absent muster-omp ${o_to}-${seat} destination
+        done
         muster_rename_require_session_absent muster-collaboration $o_slug source
         muster_rename_require_session_absent muster-collaboration $o_to destination
 

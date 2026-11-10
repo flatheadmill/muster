@@ -30,3 +30,7 @@ mail; `messages read` owns the read cursor. Use the reply address supplied by an
 incoming message rather than inferring one from its prose.
 
 Use `muster messages`, never the retired `claudectl messages` commands.
+
+The current `$MUSTER_SLUG` is authoritative even when resumed conversation
+history names an older address. Send replies with `--from "$MUSTER_SLUG"`;
+do not reuse a legacy `-omp` sender from the transcript.

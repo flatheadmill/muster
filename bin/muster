@@ -96,8 +96,144 @@ function muster_tmux_terminal_color {
 }
 
 function muster_messages_dir {
+    typeset address=$1 slug=${1%%-*}
     muster_state_root
-    REPLY=$REPLY/messages/$1
+    typeset state=$REPLY
+    case $address in
+        (${slug}-omp|${slug}-audit|${slug}-bench)
+            muster_omp_state $slug
+            if [[ $REPLY == seated ]]; then
+                if [[ $address == ${slug}-omp ]]; then
+                    abend 'fatal: retired address %s; use %s-audit' "$address" "$slug"
+                fi
+                muster_omp_collisions $slug
+            fi
+            ;;
+    esac
+    muster_omp_directory $state/messages
+    muster_omp_directory $state/messages/$address
+    muster_omp_directory $state/messages/$address/.inbox
+    muster_omp_directory $state/messages/$address/.outbox
+    REPLY=$state/messages/$address
+}
+
+# Optional paths must be ordinary objects when present. The configured state
+# root may itself be a symlink; objects below it may not redirect operations.
+function muster_omp_exists {
+    [[ -e $1 || -L $1 ]]
+}
+
+function muster_omp_directory {
+    muster_omp_exists $1 || return 0
+    [[ -d $1 && ! -L $1 && -r $1 && -x $1 ]] ||
+        abend 'fatal: expected an ordinary readable directory: %s' "$1"
+}
+
+function muster_omp_file {
+    [[ -f $1 && ! -L $1 && -r $1 ]] ||
+        abend 'fatal: expected an ordinary readable file: %s' "$1"
+}
+
+function muster_omp_state {
+    typeset slug=$1
+    muster_state_root
+    typeset namespace=$REPLY/omp room=$REPLY/omp/$slug
+    typeset marker=$REPLY/omp/.${slug}.migrating seat entry
+    muster_omp_directory $namespace
+    ! muster_omp_exists $marker ||
+        abend 'fatal: unfinished OMP migration at %s; stop the room and run: muster omp migrate --slug %s --recover' "$marker" "$slug"
+    muster_omp_directory $room
+    integer seated=0
+    for seat in audit bench; do
+        muster_omp_directory $room/$seat
+        if [[ -d $room/$seat ]]; then
+            seated=1
+            ! muster_omp_exists $room/$seat/sid.jsonl ||
+                muster_omp_file $room/$seat/sid.jsonl
+            muster_omp_directory $room/$seat/sid
+        fi
+    done
+    if (( seated )); then
+        for entry in $room/*(DN); do
+            [[ ${entry:t} == audit || ${entry:t} == bench ]] ||
+                abend 'fatal: mixed OMP layout: %s' "$entry"
+        done
+        REPLY=seated
+    else
+        typeset -a entries=( $room/*(DN) )
+        REPLY=absent
+        (( ! ${#entries} )) || REPLY=legacy
+    fi
+}
+
+function muster_omp_collisions {
+    typeset slug=$1 seat state
+    muster_state_root
+    state=$REPLY
+    muster_omp_directory $state/codex
+    muster_omp_directory $state/codex/$slug
+    muster_omp_directory $state/codex/$slug/seats
+    for seat in audit bench; do
+        ! muster_omp_exists $state/codex/$slug/seats/$seat ||
+            abend 'fatal: OMP address is owned by a Codex seat: %s-%s' "$slug" "$seat"
+        if muster_codex_address_resolve ${slug}-${seat}; then
+            abend 'fatal: OMP address is owned by a Codex seat: %s-%s' "$slug" "$seat"
+        fi
+    done
+}
+
+function muster_omp_require_stopped {
+    typeset slug=$1 address
+    (( ${+commands[tmux]} )) || abend 'fatal: tmux is not installed'
+    for address in $slug ${slug}-audit ${slug}-bench; do
+        if muster_omp_session_exists $address; then
+            abend 'fatal: stop the OMP session before migration: %s' "$address"
+        fi
+    done
+}
+
+function muster_omp_session_exists {
+    typeset diagnostic
+    diagnostic=$(env -u TMUX LC_ALL=C tmux -L muster-omp has-session -t "=$1" 2>&1) && return 0
+    case $diagnostic in
+        ("can't find session: "*|"no server running on "*|"error connecting to "*" (No such file or directory)")
+            return 1 ;;
+        (*) abend 'fatal: cannot inspect OMP private sessions: %s' "$diagnostic" ;;
+    esac
+}
+
+function muster_omp_policy {
+    # One complete JSON object, with explicit primary effort and advisor policy.
+    # Other overlay settings remain OMP's responsibility.
+    jq -ces '
+        def token: type == "string" and length > 0 and
+            (test("[[:space:][:cntrl:]]") | not);
+        def effort: . == "off" or . == "minimal" or . == "low" or
+            . == "medium" or . == "high" or . == "xhigh" or . == "auto";
+        if length == 1 and (.[0] |
+            type == "object" and
+            (.modelRoles | type == "object") and
+            (.modelRoles.default | token) and
+            (all(.modelRoles[]; token)) and
+            ((has("defaultThinkingLevel") | not) or (.defaultThinkingLevel | effort)) and
+            (has("defaultThinkingLevel") or
+                (.modelRoles.default | test(":(off|minimal|low|medium|high|xhigh|auto)$"))) and
+            (.advisor | type == "object") and
+            (.advisor.enabled | type == "boolean") and
+            ((.advisor.enabled | not) or (.modelRoles.advisor | token)))
+        then .[0] else error("expected an explicit model, effort and advisor policy") end
+    ' 2>/dev/null
+}
+
+function muster_omp_declaration {
+    typeset slug=$1 seat=$2 config=$HOME/pane/$1/.omp/$2/config.json
+    muster_omp_directory $HOME/pane/$slug/.omp
+    muster_omp_directory $HOME/pane/$slug/.omp/$seat
+    muster_omp_exists $config ||
+        abend 'fatal: prepare the OMP seat declaration before continuing: %s' "$config"
+    muster_omp_file $config
+    REPLY=$(muster_omp_policy < $config) ||
+        abend 'fatal: invalid OMP declaration (model, effort and advisor policy required): %s' "$config"
 }
 
 function muster_codex_address_resolve {

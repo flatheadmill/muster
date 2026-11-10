@@ -14,7 +14,9 @@ function :execute:codex:create {
 
     muster_window_slug $o_slug
     muster_window_slug $o_seat
-    [[ $o_seat != codex ]] || abend 'fatal: codex is the reserved default seat'
+    case $o_seat in
+        (codex|audit|bench) abend 'fatal: reserved participant seat: %s' "$o_seat" ;;
+    esac
     case $o_effort in
         (low|medium|high|xhigh) ;;
         (*) abend 'fatal: effort must be one of low, medium, high, or xhigh' ;;

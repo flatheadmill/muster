@@ -261,12 +261,29 @@ function muster_windows_inventory_uuid_harness {
 }
 
 function muster_windows_inventory_omp {
-    typeset namespace=$1 window_dir window sid_file
+    typeset namespace=$1 window_dir window sid_file seat marker layout
+
+    for marker in $namespace/.*.migrating(N); do
+        abend 'fatal: unfinished OMP migration: %s; use muster omp migrate --slug <slug> --recover' "$marker"
+    done
 
     for window_dir in $namespace/*(N); do
         muster_windows_prepare_window_directory \
             "$window_dir" 'OMP registration directory' || continue
         window=$REPLY
+        muster_omp_state $window
+        layout=$REPLY
+        if [[ $layout == seated ]]; then
+            muster_windows_validate_slug "$window" "$window_dir" 'OMP window name'
+            muster_omp_collisions $window
+            for seat in audit bench; do
+                sid_file=$window_dir/$seat/sid.jsonl
+                [[ -e $sid_file || -L $sid_file ]] || continue
+                muster_windows_require_file "$sid_file" 'OMP session'
+                muster_windows_add_row "$window" "${window}-${seat}" omp "$sid_file"
+            done
+            continue
+        fi
         sid_file=$window_dir/sid.jsonl
         [[ -e $sid_file || -L $sid_file ]] || continue
 

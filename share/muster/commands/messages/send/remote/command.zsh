@@ -18,6 +18,18 @@ function :execute:messages:send:remote {
 
     muster_messages_dir $slug
     typeset inbox=$REPLY/.inbox
+    typeset outbox=
+    if [[ -n $from ]]; then
+        muster_messages_dir $from
+        outbox=$REPLY/.outbox
+    fi
+    # Validate both endpoints before publishing, including a retired sender.
+    # Prepare the outbox first so an unusable sender cannot cause a delivery
+    # followed by a predictable outbox-creation failure.
+    [[ -z $outbox ]] || mkdir -p $outbox ||
+        abend 'fatal: unable to create outbox: %s' "$outbox"
+    [[ -z $outbox || -w $outbox ]] ||
+        abend 'fatal: outbox is not writable: %s' "$outbox"
     mkdir -p $inbox || abend 'fatal: unable to create inbox: %s' "$inbox"
 
     typeset seconds=${EPOCHREALTIME%.*}
@@ -34,10 +46,6 @@ function :execute:messages:send:remote {
         staged=
 
         if [[ -n $from ]]; then
-            muster_messages_dir $from
-            typeset outbox=$REPLY/.outbox
-            mkdir -p $outbox ||
-                abend 'fatal: unable to create outbox: %s' "$outbox"
             cp $inbox/$filename $outbox/$filename ||
                 abend 'fatal: unable to record sent message'
         fi

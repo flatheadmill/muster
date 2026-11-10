@@ -23,5 +23,10 @@ Validate and print the rename without changing anything.
 The operation is deliberately cold. Close Puzzle, stop the window's Codex TUI, and stop every private participant popup before renaming. Muster also refuses a rename while an affected Codex thread is active, a nudge is queued, or a Wicket background job may still be active. Idle Codex threads remain untouched; the next TUI open or message nudge resumes them under the new directory and routing configuration. Renaming a tmux session cannot change the environment or working directory already held by its processes.
 
 When Puzzle owns the window, Muster updates its pane tag without renaming the Puzzle host window. Restart Puzzle after the rename so its window list is reloaded from Muster state. Historical messages and transcripts retain their original text.
+
+Both OMP seat directories and their declarations move with the room, as do the
+audit and bench mailboxes. Legacy-address retirement follows the renamed seat
+layout. Stop both private OMP seats before renaming; an unfinished OMP
+migration at either name must be recovered first.
 ## OPTIONS
 > options

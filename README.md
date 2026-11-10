@@ -174,19 +174,60 @@ $ muster messages monitor --slug widget-grok
 
 ## OMP
 
-Each window has one durable OMP session. Its project-local OMP configuration
-selects the primary and advisor models. Muster starts or resumes that session,
-adds the window's messaging instructions, and opens it in a popup.
+Each window has independent audit and bench conversations. Prepare the seat's
+launch declaration at `~/pane/<slug>/.omp/<seat>/config.json`, then open it:
 
 ```console
 $ muster omp run --slug widget
+$ muster omp run --slug widget --seat bench
 ```
 
-The transcript lives at `~/.local/state/muster/omp/widget/sid.jsonl`. OMP's own
-`/new`, `/fork`, and `/resume` commands remain available for deliberate
-conversation changes inside the session.
+Omitting `--seat` selects audit. The declarations are JSON OMP overlays, with
+an explicit default model, thinking effort and advisor policy. For example:
 
-The TMUX binding opens the session for the visible Puzzle window.
+```json
+{
+  "modelRoles": {"default": "provider/model:high"},
+  "advisor": {"enabled": false}
+}
+```
+
+Select a model available in the local OMP installation. An enabled advisor also
+requires `modelRoles.advisor`. Pin any additional execution policy the seat
+relies on; other settings remain inherited. Native `.omp/config.yml` and
+`.omp/ssh.json` stay shared. OMP's settings UI does not edit the declarations,
+and a changed declaration takes effect after stopping and relaunching the seat.
+
+Transcripts live at `omp/widget/audit/sid.jsonl` and
+`omp/widget/bench/sid.jsonl` beneath Muster's state root. Each transcript owns
+its sibling `sid/` artifact tree. Private tmux sessions and message addresses
+are `widget-audit` and `widget-bench`. These names are reserved from Codex-seat
+creation. Separate conversations share the room directory; prepare distinct
+worktrees when the work requires them.
+
+Convert an older flat room explicitly while its processes, listeners and
+other writers are stopped. First prepare `.omp/audit/config.json` with the
+intended audit execution policy:
+
+```console
+$ muster omp migrate --slug widget
+```
+
+Migration validates the prepared declaration, renames the complete transcript
+tree and mailbox, and preserves mail cursors. It never invokes OMP or discovers
+configuration, and leaves native project settings untouched even when malformed.
+A missing or invalid declaration refuses before any mutation. If interrupted,
+keep the room stopped and use
+`muster omp migrate --slug widget --recover`. The fixed hidden transaction
+directory remains until all parts validate; recovery inspects observed paths
+and refuses ambiguous collisions. Run `muster omp migrate --help` for the
+recovery cases and cold operating boundary. Historical topic layouts require
+a separate reviewed procedure.
+
+OMP state and messages must be local to the same Muster namespace. After
+conversion, mailbox commands reject the old `widget-omp` address and name
+`widget-audit`, without forwarding. Other rooms can be converted individually
+when needed; there is no fleet migration or automatic legacy launch.
 
 ## Tests
 

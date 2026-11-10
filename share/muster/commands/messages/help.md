@@ -26,6 +26,18 @@ MUSTER_MESSAGES_SSH=host
 The remote host must provide `muster` on its non-interactive `PATH`. Set
 `MUSTER_MESSAGES_REMOTE_COMMAND` in the same file when another invocation is
 required.
+
+OMP audit and bench seats use local message storage alongside their OMP state.
+An unfinished OMP conversion blocks its `-omp`, `-audit`, and `-bench` mailbox
+addresses. Once audit or bench state exists, the old `-omp` address is retired;
+commands refuse it and name `-audit` without forwarding. Send checks both the
+sender and recipient before publishing, so a retired sender cannot deliver a
+message and only then fail to record its outbox.
+
+Existing named Codex audit or bench participants retain mailbox access before
+OMP claims a seated layout. They block OMP launch and migration until their
+address ownership is deliberately resolved; reserving names for new OMP seats
+does not transfer an existing participant's mail.
 ## OPTIONS
 > options
 ## COMMANDS
